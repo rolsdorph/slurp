@@ -201,7 +201,7 @@ finishOAuthFlow code home = do
                             refreshToken = Just $ respRefreshToken resp,
                             accessExpiry = Just accessExpires,
                             refreshExpiry = Just refreshExpires,
-                            state = Verified
+                            state = UsernamePending
                  }
              updatedHome <- updateHome newHome
              case updatedHome of
@@ -214,7 +214,8 @@ generateAndSaveUsername home = do
     maybeUsername <- generateUsername home
     case maybeUsername of
          (Just username) -> do
-             let newHome = home { hueUsername = Just username }
+             let newHome = home { hueUsername = Just username
+                                , state = Verified }
              updatedHome <- updateHome newHome
              
              case updatedHome of
@@ -316,7 +317,7 @@ homeFrom params = do
         <*> (read . C.unpack . snd <$> find (paramNamed "influxPort") params)
         <*> (isCheckboxSet <$> find (paramNamed "influxTLS") params)
         <*> pure currentTime
-        <*> pure Pending
+        <*> pure OAuthPending
         <*> pure Nothing
         <*> pure Nothing
         <*> pure Nothing
