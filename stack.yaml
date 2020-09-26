@@ -43,7 +43,7 @@ packages:
 #
 extra-deps:
   - HDBC-sqlite3-2.3.3.1
-  - archive: /home/mads/dev/hue-metrics-collector/.stack-work/dist/x86_64-linux-tinfo6/Cabal-3.0.1.0/huemetrics-0.1.0.2.tar.gz
+  - /home/mads/dev/hue-metrics-collector
 #
 # Override default flag values for local packages and extra-deps
 # flags: {}

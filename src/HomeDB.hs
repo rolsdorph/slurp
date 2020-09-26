@@ -6,6 +6,7 @@ module HomeDB
 
 import Types
 
+import           Data.Maybe
 import           Data.Convertible.Base
 import           Data.List
 import           Data.Time.Clock
