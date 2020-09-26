@@ -39,6 +39,30 @@ setupDb = do
     commit conn
     disconnect conn
 
+-- Stores the updated home
+updateHome :: Home -> IO (Either L.ByteString Home)
+updateHome newHome = do
+    conn        <- connectSqlite3 dbName
+    numUpdated <- run
+        conn
+        ("UPDATE "
+        ++ homeTableName
+        ++ " SET state=?, accessToken=?, accessExpiry=?, refreshToken=?, refreshExpiry=?"
+        ++ " WHERE uuid=?"
+        ) [toSql $ state newHome
+        , toSql $ accessToken newHome
+        , toSql $ accessExpiry newHome
+        , toSql $ accessToken newHome
+        , toSql $ accessExpiry newHome
+        , toSql $ uuid newHome
+        ]
+    commit conn
+    disconnect conn
+
+    case numUpdated of
+        1 -> return (Right newHome)
+        _ -> return (Left "Failed to store home.")
+
 -- Stores a Home in the database
 storeHome :: Home -> IO (Either L.ByteString Home)
 storeHome home = do

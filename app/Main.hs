@@ -144,11 +144,28 @@ buildDigestHeader nonce realm = "Digest username=\"" <> clientId
 
 finishOAuthFlow :: B.ByteString -> Home -> IO Response
 finishOAuthFlow code home = do
-    getOAuthTokens code
-    return (err500 "Not implemented")
+    tokens <- getOAuthTokens code
+    case tokens of 
+         (Just resp) -> do
+             currentTime <- getCurrentTime
+             let accessExpires = addUTCTime (secondsToNominalDiffTime $ accessTokenExpiresIn resp) currentTime
+             let refreshExpires = addUTCTime (secondsToNominalDiffTime $ refreshTokenExpiresIn resp) currentTime
+
+             let newHome = home { 
+                            accessToken = Just $ respAccessToken resp, 
+                            refreshToken = Just $ respRefreshToken resp,
+                            accessExpiry = Just accessExpires,
+                            refreshExpiry = Just refreshExpires,
+                            state = Verified
+                 }
+             updatedHome <- updateHome newHome
+             case updatedHome of
+                  (Left x) -> return $ err500 x
+                  (Right _) -> return index
+         _ -> return $ err500 "Actual error"
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens :: B.ByteString -> IO Response
+getOAuthTokens :: B.ByteString -> IO (Maybe OAuthResponse)
 getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
     res <- req
         POST
@@ -161,10 +178,13 @@ getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ 
             digestHeader <- responseHeader res "WWW-Authenticate"
             (realm, nonce) <- extractNonceAndRealm  digestHeader
             pure $ finalOAuth realm nonce code
-    
+
     case oauthData of
-         (Just res) -> return $ err500 "Soooon implemented"
-         _ -> return $ err500 "A real 500"
+         (Just ioResp) -> do
+             oresp <- liftIO ioResp
+             pure $ Just oresp
+         _ -> pure Nothing
+
 
 finalOAuth :: B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
 finalOAuth realm nonce code = do
@@ -180,7 +200,7 @@ finalOAuth realm nonce code = do
        return $ responseBody res
            
 
-data OAuthResponse = OAuthResponse {accessToken::String, refreshToken :: String, accessTokenExpiresIn :: Pico, refreshTokenExpiresIn :: Pico }
+data OAuthResponse = OAuthResponse {respAccessToken::String, respRefreshToken :: String, accessTokenExpiresIn :: Pico, refreshTokenExpiresIn :: Pico }
     deriving Show
 instance FromJSON OAuthResponse where
     parseJSON = withObject "oauthResponse" $ \o ->

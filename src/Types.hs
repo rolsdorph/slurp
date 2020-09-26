@@ -1,9 +1,18 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Types where
 
 import           Data.Time.Clock
+import           Data.Convertible
+import           Database.HDBC.SqlValue
 
 data VerificationState = Verified | Pending | Unknown
                        deriving Show
+
+instance Convertible VerificationState SqlValue where
+    safeConvert Verified = Right $ toSql "Verified"
+    safeConvert Pending  = Right $ toSql "Pending"
+    safeConvert _        = Right $ toSql "Unknown"
 
 fromString :: String -> VerificationState
 fromString s | s == "Pending"  = Pending
