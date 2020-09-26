@@ -32,6 +32,8 @@ createStmt =
        \ influxHost text NOT NULL,\
        \ influxPort text NOT NULL,\
        \ influxTLS boolean NOT NULL,\
+       \ influxUsername text NOT NULL,\
+       \ influxPassword text NOT NULL,\
        \ hueUsername text NULL)"
 
 setupDb = do
@@ -78,8 +80,8 @@ storeHome home = do
         conn
         ("INSERT INTO "
         ++ homeTableName
-        ++ "(uuid, createdAt, oauthState, influxHost, influxPort, influxTLS) \
-                                    \ VALUES (?, ?, ?, ?, ?, ?)"
+        ++ "(uuid, createdAt, oauthState, influxHost, influxPort, influxTLS, influxUsername, influxPassword) \
+                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid
         , toSql $ createdAt home
@@ -87,6 +89,8 @@ storeHome home = do
         , toSql $ influxHost home
         , toSql $ influxPort home
         , toSql $ influxTLS home
+        , toSql $ influxUsername home
+        , toSql $ influxPassword home
         ]
     commit conn
     disconnect conn
@@ -130,6 +134,8 @@ parseHomeRow vals =
         <*> valFrom "influxHost" vals
         <*> valFrom "influxPort" vals
         <*> valFrom "influxTLS" vals
+        <*> valFrom "influxUsername" vals
+        <*> valFrom "influxPassword" vals
         <*> valFrom "createdAt" vals
         <*> (fromString <$> valFrom "state" vals)
         <*> pure (valFrom "oauthState" vals)

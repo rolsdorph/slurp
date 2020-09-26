@@ -25,6 +25,8 @@ data Home = Home { uuid :: Maybe String
                  , influxHost :: String
                  , influxPort :: Int
                  , influxTLS :: Bool
+                 , influxUsername :: String
+                 , influxPassword :: String
                  , createdAt :: UTCTime
                  , state :: VerificationState
                  , oauthState :: Maybe String

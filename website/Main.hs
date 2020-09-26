@@ -316,6 +316,8 @@ homeFrom params = do
         <*> (C.unpack . snd <$> find (paramNamed "influxHost") params)
         <*> (read . C.unpack . snd <$> find (paramNamed "influxPort") params)
         <*> (isCheckboxSet <$> find (paramNamed "influxTLS") params)
+        <*> (C.unpack . snd <$> find (paramNamed "influxHost") params)
+        <*> (C.unpack . snd <$> find (paramNamed "influxPassword") params)
         <*> pure currentTime
         <*> pure OAuthPending
         <*> pure Nothing
