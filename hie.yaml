@@ -1,0 +1,8 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "minimal-hue-metrics-website:lib"
+    - path: "./app"
+      component: "minimal-hue-metrics-website:exe:hue-metrics-server-exe"
+    - path: "./test"
+      component: "minimal-hue-metrics-website:test:minimal-hue-metrics-website-test"

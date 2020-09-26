@@ -1,0 +1,16 @@
+<html>
+    <head>
+        <title>Hue Metrics Collector</title>
+    </head>
+    <body>
+        <form action="/homes" method="POST">
+            <label for="influxHost">Influx host:</label>
+            <input type="text" name="influxHost" id="influxHost"/><br/>
+            <label for="influxPort">Influx port:</label>
+            <input type="text" name="influxPort" id="influxPort"/><br/>
+            <label for="influxTLS">Use TLS:</label>
+            <input type="checkbox" name="influxTLS" id="influxTLS"/><br/>
+            <input type="submit" value="Create home"/>
+        </form>
+    </body>
+</html>

@@ -1,0 +1,66 @@
+name:                minimal-hue-metrics-website
+version:             0.1.0.0
+github:              "githubuser/minimal-hue-metrics-website"
+license:             BSD3
+author:              "Author name here"
+maintainer:          "example@example.com"
+copyright:           "2020 Author name here"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/minimal-hue-metrics-website#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- cryptohash-md5
+- wai
+- wai-extra
+- warp
+- http-types
+- bytestring
+- convertible
+- time
+- text
+- HDBC
+- HDBC-sqlite3
+- uuid
+- req
+- utf8-string
+- regex-base
+- pcre-light
+- base16-bytestring
+- aeson
+
+library:
+  source-dirs: src
+
+executables:
+  hue-metrics-server-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - minimal-hue-metrics-website
+
+tests:
+  minimal-hue-metrics-website-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - minimal-hue-metrics-website
