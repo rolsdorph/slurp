@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 06d4b1990a0033f8489576615e74c9f4f427a4740170df5301cf0f4d1c9bd5e3
+-- hash: e98d0233298d2dda845add6215530a03e068869ad96d15257a1226b828779a63
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -44,6 +44,7 @@ library
     , convertible
     , cryptohash-md5
     , http-types
+    , huemetrics
     , pcre-light
     , regex-base
     , req
@@ -74,6 +75,7 @@ executable hue-metrics-collector-exe
     , convertible
     , cryptohash-md5
     , http-types
+    , huemetrics
     , minimal-hue-metrics-website
     , pcre-light
     , regex-base
@@ -105,6 +107,7 @@ executable hue-metrics-server-exe
     , convertible
     , cryptohash-md5
     , http-types
+    , huemetrics
     , minimal-hue-metrics-website
     , pcre-light
     , regex-base
@@ -137,6 +140,7 @@ test-suite minimal-hue-metrics-website-test
     , convertible
     , cryptohash-md5
     , http-types
+    , huemetrics
     , minimal-hue-metrics-website
     , pcre-light
     , regex-base

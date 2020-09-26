@@ -11,6 +11,17 @@ packages:
       sha256: 76e71f73502350ed3fe5fc64604a21a3c8027d49fe6846183d53dbdaf583437a
   original:
     hackage: HDBC-sqlite3-2.3.3.1
+- completed:
+    size: 3355
+    filepath: /home/mads/dev/hue-metrics-collector/.stack-work/dist/x86_64-linux-tinfo6/Cabal-3.0.1.0/huemetrics-0.1.0.2.tar.gz
+    name: huemetrics
+    version: 0.1.0.2
+    sha256: 3bec7f8a997893351ec0f5ba61e144c3e4657e71713b522a156e9bd33142ce2d
+    pantry-tree:
+      size: 411
+      sha256: febb6bda4f4007fe790d9232676e79445873fe5abfae7807133f643c544505f6
+  original:
+    filepath: /home/mads/dev/hue-metrics-collector/.stack-work/dist/x86_64-linux-tinfo6/Cabal-3.0.1.0/huemetrics-0.1.0.2.tar.gz
 snapshots:
 - completed:
     size: 532383
