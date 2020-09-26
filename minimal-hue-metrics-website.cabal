@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c0768c2e53226d74247c8561e20a50c0e89e05c2756988f2306a15275b20c1de
+-- hash: b9965774ee5889d152917b5ca47829cf8a2627e157e2e696a00e0b9099da0613
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -51,6 +51,7 @@ library
     , time
     , utf8-string
     , uuid
+    , vector
     , wai
     , wai-extra
     , warp
@@ -81,6 +82,7 @@ executable hue-metrics-server-exe
     , time
     , utf8-string
     , uuid
+    , vector
     , wai
     , wai-extra
     , warp
@@ -112,6 +114,7 @@ test-suite minimal-hue-metrics-website-test
     , time
     , utf8-string
     , uuid
+    , vector
     , wai
     , wai-extra
     , warp

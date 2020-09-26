@@ -39,6 +39,7 @@ dependencies:
 - pcre-light
 - base16-bytestring
 - aeson
+- vector
 
 library:
   source-dirs: src

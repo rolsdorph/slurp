@@ -10,29 +10,32 @@ import           Network.Wai
 import qualified Network.Wai.Handler.Warp      as W
                                                 ( run )
 
-import Control.Monad.IO.Class
+import           Control.Monad.IO.Class
 import           Network.Wai.Parse
-import Network.Wai.Middleware.RequestLogger
-import qualified          Network.HTTP.Types   as HTTP
-import Data.Aeson
+import           Network.Wai.Middleware.RequestLogger
+import qualified Network.HTTP.Types            as HTTP
+import           Data.Aeson
+import           Data.Aeson.Types
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Char8         as C
-import qualified Data.ByteString.UTF8 as U
+import qualified Data.ByteString.UTF8          as U
 import           Data.List
 import           Data.Fixed
 import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
-import qualified Crypto.Hash.MD5 as MD5
-import Network.HTTP.Req
-import Text.Regex.PCRE.Light
-import qualified Data.ByteString.Base16 as B16
+import qualified Data.Vector                   as V
+import qualified Crypto.Hash.MD5               as MD5
+import           Network.HTTP.Req
+import           Text.Regex.PCRE.Light
+import qualified Data.ByteString.Base16        as B16
+
 
 clientId = "" :: B.ByteString
 clientSecret = ""
-appId = "huemetrics"
-deviceId = "huemetrics"
+appId = "hueinflux"
+deviceId = "hueinflux"
 buildOauthRedirect :: String -> String 
 buildOauthRedirect state =
   "https://api.meethue.com/oauth2/auth?"
@@ -48,15 +51,10 @@ noncex = compile "nonce=\"([^\"]+)\"" []
 
 app :: Application
 app request respond = do
-    -- This'll be useful for the OAuth flow:
-    print (queryString request)
-
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
                                         request
 
-    print (rawPathInfo request)
-    -- And this is a simple but effective dispatcher :)
     response <- case (requestMethod request, rawPathInfo request) of
         ("GET" , "/"     ) -> pure index
         ("POST", "/homes") -> postHome $ fst reqBodyParsed
@@ -142,6 +140,53 @@ buildDigestHeader nonce realm = "Digest username=\"" <> clientId
                            <> ", response=\"" <> buildResponse nonce realm <> "\""
 
 
+type Username = String
+-- Obtains an allow-listed username for the given home
+generateUsername :: Home -> IO (Maybe Username)
+generateUsername home = do
+    let buttonPayload = object ["linkbutton" .= True]
+    let usernamePayload = object ["devicetype" .= appId]
+
+    runReq defaultHttpConfig $ 
+         case accessToken home of
+            (Just token) -> do
+                buttonRes <- req
+                    PUT
+                    (https "api.meethue.com" /: "bridge" /: "0" /: "config")
+                    (ReqBodyJson buttonPayload)
+                    jsonResponse
+                    (header "Authorization" (U.fromString $ "Bearer " ++ token))
+                
+                liftIO $ print "Got button response: "
+                liftIO $ print (responseBody buttonRes :: Value)
+
+                usernameRes <- req
+                    POST
+                    (https "api.meethue.com" /: "bridge")
+                    (ReqBodyJson usernamePayload)
+                    jsonResponse
+                    (header "Authorization" (U.fromString $ "Bearer " ++ token))
+
+                liftIO $ print "Got username response: "
+                liftIO $ print (responseBody usernameRes)
+
+                pure $ parseMaybe extractUsername (responseBody usernameRes)
+
+            _ -> do
+                liftIO $ print "No token found"
+                pure Nothing
+
+extractUsername :: Value -> Parser String
+extractUsername = withArray "usernameList" $ \a -> case V.toList a of
+    (x : _) -> withObject
+        "usernameObject"
+        (\o -> do
+            success <- o .: "success"
+            success .: "username"
+        )
+        x
+    _ -> fail("Did not get a list of potential username objects")
+
 finishOAuthFlow :: B.ByteString -> Home -> IO Response
 finishOAuthFlow code home = do
     tokens <- getOAuthTokens code
@@ -161,8 +206,21 @@ finishOAuthFlow code home = do
              updatedHome <- updateHome newHome
              case updatedHome of
                   (Left x) -> return $ err500 x
+                  (Right h) -> generateAndSaveUsername h
+         _ -> return $ err500 "Actual error: Lacking token"
+
+generateAndSaveUsername :: Home -> IO Response
+generateAndSaveUsername home = do
+    maybeUsername <- generateUsername home
+    case maybeUsername of
+         (Just username) -> do
+             let newHome = home { hueUsername = Just username }
+             updatedHome <- updateHome newHome
+             
+             case updatedHome of
+                  (Left x) -> return $ err500 x
                   (Right _) -> return index
-         _ -> return $ err500 "Actual error"
+         _ -> return $ err500 "Actual error: Failed to extract username"
 
 -- Finishes an OAuth Flow with the given access code,
 getOAuthTokens :: B.ByteString -> IO (Maybe OAuthResponse)
@@ -259,6 +317,7 @@ homeFrom params = do
         <*> (isCheckboxSet <$> find (paramNamed "influxTLS") params)
         <*> pure currentTime
         <*> pure Pending
+        <*> pure Nothing
         <*> pure Nothing
         <*> pure Nothing
         <*> pure Nothing

@@ -31,7 +31,8 @@ createStmt =
        \ createdAt datetime NULL,\
        \ influxHost text NOT NULL,\
        \ influxPort text NOT NULL,\
-       \ influxTLS boolean NOT NULL)"
+       \ influxTLS boolean NOT NULL,\
+       \ hueUsername text NULL)"
 
 setupDb = do
     conn <- connectSqlite3 dbName
@@ -47,13 +48,14 @@ updateHome newHome = do
         conn
         ("UPDATE "
         ++ homeTableName
-        ++ " SET state=?, accessToken=?, accessExpiry=?, refreshToken=?, refreshExpiry=?"
+        ++ " SET state=?, accessToken=?, accessExpiry=?, refreshToken=?, refreshExpiry=?, hueUsername=?"
         ++ " WHERE uuid=?"
         ) [toSql $ state newHome
         , toSql $ accessToken newHome
         , toSql $ accessExpiry newHome
         , toSql $ accessToken newHome
         , toSql $ accessExpiry newHome
+        , toSql $ hueUsername newHome
         , toSql $ uuid newHome
         ]
     commit conn
@@ -79,9 +81,9 @@ storeHome home = do
         ++ "(uuid, createdAt, oauthState, influxHost, influxPort, influxTLS) \
                                     \ VALUES (?, ?, ?, ?, ?, ?)"
         )
-        [ toSql $ uuid
+        [ toSql uuid
         , toSql $ createdAt home
-        , toSql $ oauthState
+        , toSql oauthState
         , toSql $ influxHost home
         , toSql $ influxPort home
         , toSql $ influxTLS home
@@ -122,19 +124,20 @@ getHome (Just uuid) = do
 getHome Nothing = return Nothing
 
 parseHomeRow :: [(String, SqlValue)] -> Maybe Home
-parseHomeRow vals = do
+parseHomeRow vals =
     Home
-        <$> (valFrom "uuid" vals)
-        <*> (valFrom "influxHost" vals)
-        <*> (valFrom "influxPort" vals)
-        <*> (valFrom "influxTLS" vals)
-        <*> (valFrom "createdAt" vals)
+        <$> valFrom "uuid" vals
+        <*> valFrom "influxHost" vals
+        <*> valFrom "influxPort" vals
+        <*> valFrom "influxTLS" vals
+        <*> valFrom "createdAt" vals
         <*> (fromString <$> valFrom "state" vals)
         <*> pure (valFrom "oauthState" vals)
         <*> pure (valFrom "accessToken" vals)
         <*> pure (valFrom "refreshToken" vals)
         <*> pure (valFrom "accessExpiry" vals)
         <*> pure (valFrom "refreshExpiry" vals)
+        <*> pure (valFrom "hueUsername" vals)
 
 valFrom
     :: Convertible SqlValue (Maybe a)

@@ -29,5 +29,6 @@ data Home = Home { uuid :: Maybe String
                  , accessToken :: Maybe String
                  , refreshToken :: Maybe String
                  , accessExpiry :: Maybe UTCTime
-                 , refreshExpiry :: Maybe UTCTime }
+                 , refreshExpiry :: Maybe UTCTime
+                 , hueUsername :: Maybe String }
     deriving Show
