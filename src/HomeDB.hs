@@ -100,10 +100,18 @@ storeHome home = do
         1 -> return (Right (home { uuid = Just uuid, oauthState = Just oauthState }))
         _ -> return (Left "Failed to store home.")
 
+-- Retrieves all Homes that are in the Verified  state
+getVerifiedHomes :: IO [Home]
+getVerifiedHomes = do
+    conn <- connectSqlite3 dbName
+    stmt <- prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Verified'")
+    res <- execute stmt []
+    homes <- fetchAllRowsAL stmt
+    pure $ mapMaybe parseHomeRow homes
+
 -- Retrieves the Home associated with the given OAuth verification state
 getOauthPendingHome :: String -> IO (Maybe Home)
 getOauthPendingHome state = do
-    print state
     conn <- connectSqlite3 dbName
     stmt <- prepare conn
                     ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Pending' AND oauthState = ?")
