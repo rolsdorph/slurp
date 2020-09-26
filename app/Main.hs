@@ -36,7 +36,7 @@ deviceId = "huemetrics"
 buildOauthRedirect :: String -> String 
 buildOauthRedirect state =
   "https://api.meethue.com/oauth2/auth?"
-    ++ "clientid=" ++ (U.toString clientId)
+    ++ "clientid=" ++ U.toString clientId
     ++ "&appid=" ++ appId
     ++ "&deviceid=" ++ deviceId
     ++ "&state=" ++ state
@@ -148,7 +148,7 @@ finishOAuthFlow code home = do
     return (err500 "Not implemented")
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens :: B.ByteString -> IO (Maybe Response)
+getOAuthTokens :: B.ByteString -> IO Response
 getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
     res <- req
         POST
@@ -157,16 +157,14 @@ getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ 
         ignoreResponse
         (("grant_type" =: ("authorization_code" :: T.Text)) <> ("code" =: U.toString code))
 
-    -- digestHeader <- responseHeader res "WWW-Authenticate"
-    let digestHeader = responseHeader res "WWW-Authenticate"
+    let oauthData = do
+            digestHeader <- responseHeader res "WWW-Authenticate"
+            (realm, nonce) <- extractNonceAndRealm  digestHeader
+            pure $ finalOAuth realm nonce code
     
-    case digestHeader of
-         (Just dig) -> case (extractNonceAndRealm dig) of 
-                            Just (realm, nonce) -> do
-                                liftIO $ finalOAuth realm nonce code
-                                return Nothing
-                            _ -> return Nothing
-         _ -> return Nothing
+    case oauthData of
+         (Just res) -> return $ err500 "Soooon implemented"
+         _ -> return $ err500 "A real 500"
 
 finalOAuth :: B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
 finalOAuth realm nonce code = do
