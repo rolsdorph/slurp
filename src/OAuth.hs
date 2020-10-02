@@ -7,6 +7,7 @@ import qualified Data.ByteString               as B
 import qualified Crypto.Hash.MD5               as MD5
 import qualified Data.ByteString.Base16        as B16
 import           Text.Regex.PCRE.Light
+import           System.Environment
 
 -- Type definitions
 type Nonce = B.ByteString

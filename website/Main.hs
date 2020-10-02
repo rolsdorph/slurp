@@ -29,7 +29,6 @@ import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
-import           System.Environment
 
 app :: OAuthCreds -> Application
 app creds request respond = do
