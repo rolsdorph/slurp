@@ -31,20 +31,6 @@ import qualified Data.Vector                   as V
 import           Network.HTTP.Req
 import           System.Environment
 
-
-readCreds :: IO (Maybe OAuthCreds)
-readCreds = do
-    id       <- lookupEnv "clientId"
-    secret   <- lookupEnv "clientSecret"
-    appId    <- lookupEnv "appId"
-    deviceId <- lookupEnv "deviceId"
-    pure
-        $   OAuthCreds
-        <$> (U.fromString <$> id)
-        <*> (U.fromString <$> secret)
-        <*> appId
-        <*> deviceId
-
 app :: OAuthCreds -> Application
 app creds request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions

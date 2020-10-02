@@ -24,6 +24,20 @@ data OAuthCreds = OAuthCreds {
     deviceId :: DeviceId
 }
 
+-- Attempts to read OAuth variables from the environment
+readCreds :: IO (Maybe OAuthCreds)
+readCreds = do
+    id       <- lookupEnv "clientId"
+    secret   <- lookupEnv "clientSecret"
+    appId    <- lookupEnv "appId"
+    deviceId <- lookupEnv "deviceId"
+    pure
+        $   OAuthCreds
+        <$> (U.fromString <$> id)
+        <*> (U.fromString <$> secret)
+        <*> appId
+        <*> deviceId
+
 -- Constructs an OAuth redirect url
 buildOauthRedirect :: OAuthCreds -> State -> String
 buildOauthRedirect creds state =
