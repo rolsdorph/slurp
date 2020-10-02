@@ -4,6 +4,8 @@ module Main where
 
 import           Types
 import           Lib
+import           OAuth
+import           Html
 
 import           HomeDB
 import           Network.Wai
@@ -26,28 +28,13 @@ import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
-import qualified Crypto.Hash.MD5               as MD5
 import           Network.HTTP.Req
-import           Text.Regex.PCRE.Light
-import qualified Data.ByteString.Base16        as B16
 
 
 clientId = "" :: B.ByteString
 clientSecret = ""
 appId = "hueinflux"
 deviceId = "hueinflux"
-buildOauthRedirect :: String -> String 
-buildOauthRedirect state =
-  "https://api.meethue.com/oauth2/auth?"
-    ++ "clientid=" ++ U.toString clientId
-    ++ "&appid=" ++ appId
-    ++ "&deviceid=" ++ deviceId
-    ++ "&state=" ++ state
-    ++ "&response_type=code"
-
--- For extracting stuff
-realmex = compile "realm=\"([^\"]+)\"" []
-noncex = compile "nonce=\"([^\"]+)\"" []
 
 app :: Application
 app request respond = do
@@ -97,7 +84,7 @@ err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 oauthRedirect :: Home -> IO Response
 oauthRedirect home = case oauthState home of
     Just state -> return
-        (redirectResponse (buildOauthRedirect state))
+        (redirectResponse (buildOauthRedirect clientId clientSecret appId deviceId state))
     _ -> return
         (err500 "Internal Server Error - did not find expected OAuth state")
 
@@ -125,19 +112,6 @@ callbackResponse state code = do
     case maybeHome of 
          (Just h) -> finishOAuthFlow code h
          _ -> return notFound
-
--- Given a nonce and a realm, builds the response hash for an OAuth digest header
-buildResponse :: B.ByteString -> B.ByteString -> B.ByteString
-buildResponse nonce realm = B16.encode $ MD5.hash (hash1 <> ":" <> nonce <> ":" <> hash2)
-                              where hash1 = B16.encode $ MD5.hash(clientId <> ":" <> realm <> ":" <> clientSecret)
-                                    hash2 = B16.encode $ MD5.hash "POST:/oauth2/token"
-
--- Generates the Digest auth header from the given nonce and realm
-buildDigestHeader :: B.ByteString -> B.ByteString -> B.ByteString
-buildDigestHeader nonce realm = "Digest username=\"" <> clientId
-                           <> "\", realm=\"" <> realm <> "\""
-                           <> ", nonce=\"" <> nonce <> "\", uri=\"/oauth2/token\""
-                           <> ", response=\"" <> buildResponse nonce realm <> "\""
 
 
 type Username = String
@@ -247,7 +221,7 @@ getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ 
 
 finalOAuth :: B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
 finalOAuth realm nonce code = do
-   let authHeader = buildDigestHeader nonce realm
+   let authHeader = buildDigestHeader clientId clientSecret nonce realm
 
    runReq defaultHttpConfig $ do
        res <- req
@@ -269,13 +243,6 @@ instance FromJSON OAuthResponse where
             <*> (read <$> o .: "access_token_expires_in")
             <*> (read <$> o .: "refresh_token_expires_in")
 
--- Extracts the realm and nonce from a WWW-Authenticate response header
-extractNonceAndRealm :: U.ByteString -> Maybe (U.ByteString, U.ByteString)
-extractNonceAndRealm header = do
-    [_, realm] <- match realmex header []
-    [_, nonce] <- match noncex header []
-    pure (realm, nonce)
-
 -- POST /homes
 postHome :: [Param] -> IO Response
 postHome params = do
@@ -290,18 +257,6 @@ postHome params = do
                 Nothing -> return $ err500 "Couldn't store home"
 
         Nothing -> return (badRequest "Malformed request body")
-
--- Helpers for handling HTML forms
-
--- Checks whether a parameter originating from a standard HTML checkbox is checked
-isCheckboxSet :: Param -> Bool
-isCheckboxSet param = snd param == "on"
-
--- Checks whether a parameter originating from a standard HTML form has the given name
-paramNamed :: C.ByteString -> Param -> Bool
-paramNamed name param | paramName == name = True
-                      | otherwise         = False
-    where paramName = fst param
 
 -- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
 homeFrom :: [Param] -> IO (Maybe Home)
