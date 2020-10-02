@@ -38,10 +38,10 @@ app creds request respond = do
                                         request
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"     ) -> pure index
-        ("POST", "/homes") -> postHome creds (fst reqBodyParsed)
-        ("GET", "/callback") -> oauthCallback creds (queryString request)
-        (_     , _       ) -> pure notFound
+        ("GET" , "/"        ) -> pure index
+        ("POST", "/homes"   ) -> postHome creds (fst reqBodyParsed)
+        ("GET" , "/callback") -> oauthCallback creds (queryString request)
+        (_     , _          ) -> pure notFound
 
     respond response
 
@@ -55,8 +55,8 @@ main = do
 
     maybeCreds <- readCreds
     case maybeCreds of
-         (Just oauthCreds) -> W.run 8080 $ logStdout (app oauthCreds)
-         Nothing -> putStrLn "OAuth creds not loaded, not running"
+        (Just oauthCreds) -> W.run 8080 $ logStdout (app oauthCreds)
+        Nothing           -> putStrLn "OAuth creds not loaded, not running"
 
 -- Helpers for generating responses
 redirectResponse :: String -> Response
@@ -64,25 +64,27 @@ redirectResponse target =
     responseBuilder HTTP.found302 [(HTTP.hLocation, C.pack target)] mempty
 
 index :: Response
-index =
-    responseFile HTTP.status200 [("Content-Type", "text/html")] "index.html" Nothing
+index = responseFile HTTP.status200
+                     [("Content-Type", "text/html")]
+                     "index.html"
+                     Nothing
 
 notFound :: Response
 notFound =
     responseLBS HTTP.status404 [("Content-Type", "text/plain")] "Not found :("
 
 badRequest :: L.ByteString -> Response
-badRequest errMsg =
-    responseLBS HTTP.status400 [("Content-Type", "text/plain")] ("Bad request >:( - " <> errMsg)
+badRequest errMsg = responseLBS HTTP.status400
+                                [("Content-Type", "text/plain")]
+                                ("Bad request >:( - " <> errMsg)
 
 err500 :: L.ByteString -> Response
 err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 
 oauthRedirect :: OAuthCreds -> Home -> IO Response
 oauthRedirect creds home = case oauthState home of
-    Just state -> return
-        (redirectResponse (buildOauthRedirect creds state))
-    _ -> return
+    Just state -> return (redirectResponse (buildOauthRedirect creds state))
+    _          -> return
         (err500 "Internal Server Error - did not find expected OAuth state")
 
 -- Gets the value of the given param, if present
@@ -95,57 +97,58 @@ getParamValue name params = case find (\p -> fst p == name) params of
 oauthCallback :: OAuthCreds -> HTTP.Query -> IO Response
 oauthCallback creds queryParams = do
     let state = getParamValue "state" queryParams
-    let code = getParamValue "code" queryParams
+    let code  = getParamValue "code" queryParams
 
     case (state, code) of
-         (Just stateVal, Just codeVal) -> callbackResponse creds stateVal (U.fromString codeVal)
-         _ -> return (badRequest "Code and state parameters must both be present")
+        (Just stateVal, Just codeVal) ->
+            callbackResponse creds stateVal (U.fromString codeVal)
+        _ ->
+            return (badRequest "Code and state parameters must both be present")
 
 -- Generates a callback response for the given state and code param
 callbackResponse :: OAuthCreds -> String -> B.ByteString -> IO Response
 callbackResponse creds state code = do
     maybeHome <- getOauthPendingHome state
 
-    case maybeHome of 
-         (Just h) -> finishOAuthFlow creds code h
-         _ -> return notFound
+    case maybeHome of
+        (Just h) -> finishOAuthFlow creds code h
+        _        -> return notFound
 
 
 type Username = String
 -- Obtains an allow-listed username for the given home
 generateUsername :: OAuthCreds -> Home -> IO (Maybe Username)
 generateUsername creds home = do
-    let buttonPayload = object ["linkbutton" .= True]
-    let usernamePayload = object ["devicetype" .= (appId creds)]
+    let buttonPayload   = object ["linkbutton" .= True]
+    let usernamePayload = object ["devicetype" .= appId creds]
 
-    runReq defaultHttpConfig $ 
-         case accessToken home of
-            (Just token) -> do
-                buttonRes <- req
-                    PUT
-                    (https "api.meethue.com" /: "bridge" /: "0" /: "config")
-                    (ReqBodyJson buttonPayload)
-                    jsonResponse
-                    (header "Authorization" (U.fromString $ "Bearer " ++ token))
-                
-                liftIO $ print "Got button response: "
-                liftIO $ print (responseBody buttonRes :: Value)
+    runReq defaultHttpConfig $ case accessToken home of
+        (Just token) -> do
+            buttonRes <- req
+                PUT
+                (https "api.meethue.com" /: "bridge" /: "0" /: "config")
+                (ReqBodyJson buttonPayload)
+                jsonResponse
+                (header "Authorization" (U.fromString $ "Bearer " ++ token))
 
-                usernameRes <- req
-                    POST
-                    (https "api.meethue.com" /: "bridge")
-                    (ReqBodyJson usernamePayload)
-                    jsonResponse
-                    (header "Authorization" (U.fromString $ "Bearer " ++ token))
+            liftIO $ print "Got button response: "
+            liftIO $ print (responseBody buttonRes :: Value)
 
-                liftIO $ print "Got username response: "
-                liftIO $ print (responseBody usernameRes)
+            usernameRes <- req
+                POST
+                (https "api.meethue.com" /: "bridge")
+                (ReqBodyJson usernamePayload)
+                jsonResponse
+                (header "Authorization" (U.fromString $ "Bearer " ++ token))
 
-                pure $ parseMaybe extractUsername (responseBody usernameRes)
+            liftIO $ print "Got username response: "
+            liftIO $ print (responseBody usernameRes)
 
-            _ -> do
-                liftIO $ print "No token found"
-                pure Nothing
+            pure $ parseMaybe extractUsername (responseBody usernameRes)
+
+        _ -> do
+            liftIO $ print "No token found"
+            pure Nothing
 
 extractUsername :: Value -> Parser String
 extractUsername = withArray "usernameList" $ \a -> case V.toList a of
@@ -251,7 +254,7 @@ postHome creds params = do
             storeHomeRes <- storeHome x
             case storeHomeRes of
                 (Just storedHome) -> oauthRedirect creds storedHome
-                Nothing -> return $ err500 "Couldn't store home"
+                Nothing           -> return $ err500 "Couldn't store home"
 
         Nothing -> return (badRequest "Malformed request body")
 

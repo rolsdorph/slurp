@@ -66,7 +66,7 @@ updateHome newHome = do
 
     case numUpdated of
         1 -> return $ Just newHome
-        _ -> return Nothing 
+        _ -> return Nothing
 
 -- Stores a Home in the database
 storeHome :: Home -> IO (Maybe Home)
@@ -162,4 +162,4 @@ valFrom
 valFrom colName allVals = case maybeSqlVal of
     (Just sqlVal) -> fromSql sqlVal
     _             -> Nothing
-    where maybeSqlVal = snd <$> (find (\v -> fst v == colName) allVals)
+    where maybeSqlVal = snd <$> find (\v -> fst v == colName) allVals
