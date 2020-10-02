@@ -17,17 +17,23 @@ type AppId = String
 type DeviceId = String
 type State = String
 
+data OAuthCreds = OAuthCreds {
+    clientId :: ClientId,
+    clientSecret :: ClientSecret,
+    appId :: AppId,
+    deviceId :: DeviceId
+}
+
 -- Constructs an OAuth redirect url
-buildOauthRedirect
-    :: ClientId -> ClientSecret -> AppId -> DeviceId -> State -> String
-buildOauthRedirect clientId clientSecret appId deviceId state =
+buildOauthRedirect :: OAuthCreds -> State -> String
+buildOauthRedirect creds state =
     "https://api.meethue.com/oauth2/auth?"
         ++ "clientid="
-        ++ U.toString clientId
+        ++ U.toString (clientId creds)
         ++ "&appid="
-        ++ appId
+        ++ appId creds
         ++ "&deviceid="
-        ++ deviceId
+        ++ deviceId creds
         ++ "&state="
         ++ state
         ++ "&response_type=code"
@@ -51,10 +57,10 @@ buildResponse clientId clientSecret nonce realm = B16.encode
     hash2 = B16.encode $ MD5.hash "POST:/oauth2/token"
 
 -- Generates the Digest auth header from the given nonce and realm
-buildDigestHeader :: ClientId -> ClientSecret -> Nonce -> Realm -> B.ByteString
-buildDigestHeader clientId clientSecret nonce realm =
+buildDigestHeader :: OAuthCreds -> Nonce -> Realm -> B.ByteString
+buildDigestHeader creds nonce realm =
     "Digest username=\""
-        <> clientId
+        <> clientId creds
         <> "\", realm=\""
         <> realm
         <> "\""
@@ -62,5 +68,5 @@ buildDigestHeader clientId clientSecret nonce realm =
         <> nonce
         <> "\", uri=\"/oauth2/token\""
         <> ", response=\""
-        <> buildResponse clientId clientSecret nonce realm
+        <> buildResponse (clientId creds) (clientSecret creds) nonce realm
         <> "\""

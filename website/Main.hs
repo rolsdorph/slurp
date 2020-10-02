@@ -29,23 +29,32 @@ import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
+import           System.Environment
 
 
-clientId = "" :: B.ByteString
-clientSecret = ""
-appId = "hueinflux"
-deviceId = "hueinflux"
+readCreds :: IO (Maybe OAuthCreds)
+readCreds = do
+    id       <- lookupEnv "clientId"
+    secret   <- lookupEnv "clientSecret"
+    appId    <- lookupEnv "appId"
+    deviceId <- lookupEnv "deviceId"
+    pure
+        $   OAuthCreds
+        <$> (U.fromString <$> id)
+        <*> (U.fromString <$> secret)
+        <*> appId
+        <*> deviceId
 
-app :: Application
-app request respond = do
+app :: OAuthCreds -> Application
+app creds request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
                                         request
 
     response <- case (requestMethod request, rawPathInfo request) of
         ("GET" , "/"     ) -> pure index
-        ("POST", "/homes") -> postHome $ fst reqBodyParsed
-        ("GET", "/callback") -> oauthCallback (queryString request)
+        ("POST", "/homes") -> postHome creds (fst reqBodyParsed)
+        ("GET", "/callback") -> oauthCallback creds (queryString request)
         (_     , _       ) -> pure notFound
 
     respond response
@@ -58,8 +67,10 @@ main = do
      -- Flex some IO
     putStrLn "http://localhost:8080/"
 
-     -- Start serving requests
-    W.run 8080 $ logStdout app
+    maybeCreds <- readCreds
+    case maybeCreds of
+         (Just oauthCreds) -> W.run 8080 $ logStdout (app oauthCreds)
+         Nothing -> putStrLn "OAuth creds not loaded, not running"
 
 -- Helpers for generating responses
 redirectResponse :: String -> Response
@@ -81,10 +92,10 @@ badRequest errMsg =
 err500 :: L.ByteString -> Response
 err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 
-oauthRedirect :: Home -> IO Response
-oauthRedirect home = case oauthState home of
+oauthRedirect :: OAuthCreds -> Home -> IO Response
+oauthRedirect creds home = case oauthState home of
     Just state -> return
-        (redirectResponse (buildOauthRedirect clientId clientSecret appId deviceId state))
+        (redirectResponse (buildOauthRedirect creds state))
     _ -> return
         (err500 "Internal Server Error - did not find expected OAuth state")
 
@@ -95,31 +106,31 @@ getParamValue name params = case find (\p -> fst p == name) params of
     _          -> Nothing
 
 -- GET /callback
-oauthCallback :: HTTP.Query -> IO Response
-oauthCallback queryParams = do
+oauthCallback :: OAuthCreds -> HTTP.Query -> IO Response
+oauthCallback creds queryParams = do
     let state = getParamValue "state" queryParams
     let code = getParamValue "code" queryParams
 
     case (state, code) of
-         (Just stateVal, Just codeVal) -> callbackResponse stateVal (U.fromString codeVal)
+         (Just stateVal, Just codeVal) -> callbackResponse creds stateVal (U.fromString codeVal)
          _ -> return (badRequest "Code and state parameters must both be present")
 
 -- Generates a callback response for the given state and code param
-callbackResponse :: String -> B.ByteString -> IO Response
-callbackResponse state code = do
+callbackResponse :: OAuthCreds -> String -> B.ByteString -> IO Response
+callbackResponse creds state code = do
     maybeHome <- getOauthPendingHome state
 
     case maybeHome of 
-         (Just h) -> finishOAuthFlow code h
+         (Just h) -> finishOAuthFlow creds code h
          _ -> return notFound
 
 
 type Username = String
 -- Obtains an allow-listed username for the given home
-generateUsername :: Home -> IO (Maybe Username)
-generateUsername home = do
+generateUsername :: OAuthCreds -> Home -> IO (Maybe Username)
+generateUsername creds home = do
     let buttonPayload = object ["linkbutton" .= True]
-    let usernamePayload = object ["devicetype" .= appId]
+    let usernamePayload = object ["devicetype" .= (appId creds)]
 
     runReq defaultHttpConfig $ 
          case accessToken home of
@@ -161,9 +172,9 @@ extractUsername = withArray "usernameList" $ \a -> case V.toList a of
         x
     _ -> fail "Did not get a list of potential username objects"
 
-finishOAuthFlow :: B.ByteString -> Home -> IO Response
-finishOAuthFlow code home = do
-    tokens <- getOAuthTokens code
+finishOAuthFlow :: OAuthCreds -> B.ByteString -> Home -> IO Response
+finishOAuthFlow creds code home = do
+    tokens <- getOAuthTokens creds code
     case tokens of 
          (Just resp) -> do
              currentTime <- getCurrentTime
@@ -179,13 +190,13 @@ finishOAuthFlow code home = do
                  }
              updatedHome <- updateHome newHome
              case updatedHome of
-                  (Just h) -> generateAndSaveUsername h
+                  (Just h) -> generateAndSaveUsername creds h
                   Nothing -> return $ err500 "Failed to store OAuth information"
          _ -> return $ err500 "Actual error: Lacking token"
 
-generateAndSaveUsername :: Home -> IO Response
-generateAndSaveUsername home = do
-    maybeUsername <- generateUsername home
+generateAndSaveUsername :: OAuthCreds -> Home -> IO Response
+generateAndSaveUsername creds home = do
+    maybeUsername <- generateUsername creds home
     case maybeUsername of
          (Just username) -> do
              let newHome = home { hueUsername = Just username
@@ -198,8 +209,8 @@ generateAndSaveUsername home = do
          _ -> return $ err500 "Failed to extract username"
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens :: B.ByteString -> IO (Maybe OAuthResponse)
-getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
+getOAuthTokens :: OAuthCreds -> B.ByteString -> IO (Maybe OAuthResponse)
+getOAuthTokens creds code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
     res <- req
         POST
         (https "api.meethue.com" /: "oauth2" /: "token")
@@ -210,7 +221,7 @@ getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ 
     let oauthData = do
             digestHeader <- responseHeader res "WWW-Authenticate"
             (realm, nonce) <- extractNonceAndRealm  digestHeader
-            pure $ finalOAuth realm nonce code
+            pure $ finalOAuth creds realm nonce code
 
     case oauthData of
          (Just ioResp) -> do
@@ -219,9 +230,9 @@ getOAuthTokens code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ 
          _ -> pure Nothing
 
 
-finalOAuth :: B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
-finalOAuth realm nonce code = do
-   let authHeader = buildDigestHeader clientId clientSecret nonce realm
+finalOAuth :: OAuthCreds -> B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
+finalOAuth creds realm nonce code = do
+   let authHeader = buildDigestHeader creds nonce realm
 
    runReq defaultHttpConfig $ do
        res <- req
@@ -244,8 +255,8 @@ instance FromJSON OAuthResponse where
             <*> (read <$> o .: "refresh_token_expires_in")
 
 -- POST /homes
-postHome :: [Param] -> IO Response
-postHome params = do
+postHome :: OAuthCreds -> [Param] -> IO Response
+postHome creds params = do
     parsedHome <- homeFrom params
 
     case parsedHome of
@@ -253,7 +264,7 @@ postHome params = do
             print "Storing home..."
             storeHomeRes <- storeHome x
             case storeHomeRes of
-                (Just storedHome) -> oauthRedirect storedHome
+                (Just storedHome) -> oauthRedirect creds storedHome
                 Nothing -> return $ err500 "Couldn't store home"
 
         Nothing -> return (badRequest "Malformed request body")
