@@ -185,7 +185,7 @@ extractUsername = withArray "usernameList" $ \a -> case V.toList a of
             success .: "username"
         )
         x
-    _ -> fail("Did not get a list of potential username objects")
+    _ -> fail "Did not get a list of potential username objects"
 
 finishOAuthFlow :: B.ByteString -> Home -> IO Response
 finishOAuthFlow code home = do
@@ -271,10 +271,10 @@ instance FromJSON OAuthResponse where
 
 -- Extracts the realm and nonce from a WWW-Authenticate response header
 extractNonceAndRealm :: U.ByteString -> Maybe (U.ByteString, U.ByteString)
-extractNonceAndRealm header =
-    case (match realmex header [], match noncex header []) of
-        (Just [_, realm], Just [_, nonce]) -> Just (realm, nonce)
-        _ -> Nothing
+extractNonceAndRealm header = do
+    [_, realm] <- match realmex header []
+    [_, nonce] <- match noncex header []
+    pure (realm, nonce)
 
 -- POST /homes
 postHome :: [Param] -> IO Response
