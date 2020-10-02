@@ -205,8 +205,8 @@ finishOAuthFlow code home = do
                  }
              updatedHome <- updateHome newHome
              case updatedHome of
-                  (Left x) -> return $ err500 x
-                  (Right h) -> generateAndSaveUsername h
+                  (Just h) -> generateAndSaveUsername h
+                  Nothing -> return $ err500 "Failed to store OAuth information"
          _ -> return $ err500 "Actual error: Lacking token"
 
 generateAndSaveUsername :: Home -> IO Response
@@ -219,9 +219,9 @@ generateAndSaveUsername home = do
              updatedHome <- updateHome newHome
              
              case updatedHome of
-                  (Left x) -> return $ err500 x
-                  (Right _) -> return index
-         _ -> return $ err500 "Actual error: Failed to extract username"
+                  (Just _) -> return index
+                  Nothing -> return $ err500 "Couldn't store username"
+         _ -> return $ err500 "Failed to extract username"
 
 -- Finishes an OAuth Flow with the given access code,
 getOAuthTokens :: B.ByteString -> IO (Maybe OAuthResponse)
@@ -286,10 +286,8 @@ postHome params = do
             print "Storing home..."
             storeHomeRes <- storeHome x
             case storeHomeRes of
-                Left err -> do
-                    print "Failed to store home"
-                    return (err500 err)
-                Right storedHome -> oauthRedirect storedHome
+                (Just storedHome) -> oauthRedirect storedHome
+                Nothing -> return $ err500 "Couldn't store home"
 
         Nothing -> return (badRequest "Malformed request body")
 

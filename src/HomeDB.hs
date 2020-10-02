@@ -44,7 +44,7 @@ setupDb = do
     disconnect conn
 
 -- Stores the updated home
-updateHome :: Home -> IO (Either L.ByteString Home)
+updateHome :: Home -> IO (Maybe Home)
 updateHome newHome = do
     conn        <- connectSqlite3 dbName
     numUpdated <- run
@@ -65,11 +65,11 @@ updateHome newHome = do
     disconnect conn
 
     case numUpdated of
-        1 -> return (Right newHome)
-        _ -> return (Left "Failed to store home.")
+        1 -> return $ Just newHome
+        _ -> return Nothing 
 
 -- Stores a Home in the database
-storeHome :: Home -> IO (Either L.ByteString Home)
+storeHome :: Home -> IO (Maybe Home)
 storeHome home = do
     -- Randomness for UUID and state
     uuid        <- show <$> nextRandom
@@ -97,8 +97,8 @@ storeHome home = do
     disconnect conn
 
     case numInserted of
-        1 -> return (Right (home { uuid = Just uuid, oauthState = Just oauthState }))
-        _ -> return (Left "Failed to store home.")
+        1 -> return $ Just (home { uuid = Just uuid, oauthState = Just oauthState })
+        _ -> return Nothing
 
 -- Retrieves all Homes that are in the Verified  state
 getVerifiedHomes :: IO [Home]
