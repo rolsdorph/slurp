@@ -11,6 +11,13 @@ packages:
       sha256: 76e71f73502350ed3fe5fc64604a21a3c8027d49fe6846183d53dbdaf583437a
   original:
     hackage: HDBC-sqlite3-2.3.3.1
+- completed:
+    hackage: ghc-exactprint-0.6.3.2@sha256:7399e64eef44ac4a946d1796be0cfe8b73279d2eeb66e2fcf6abbf3f6507888f,9411
+    pantry-tree:
+      size: 86248
+      sha256: 5351f2a655e9610d1159f2c4deff5197320a6e70ca5165f14fb40dc045da96b3
+  original:
+    hackage: ghc-exactprint-0.6.3.2@sha256:7399e64eef44ac4a946d1796be0cfe8b73279d2eeb66e2fcf6abbf3f6507888f,9411
 snapshots:
 - completed:
     size: 532383
