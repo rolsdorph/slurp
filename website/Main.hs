@@ -6,6 +6,7 @@ import           Types
 import           Lib
 import           OAuth
 import           Html
+import Util
 
 import           HomeDB
 import           Network.Wai
@@ -133,7 +134,7 @@ finishOAuthFlow :: OAuthCreds -> B.ByteString -> Home -> IO Response
 finishOAuthFlow creds code home = do
     tokens <- getOAuthTokens creds code
     case tokens of 
-         (Just resp) -> do
+         (Right resp) -> do
              currentTime <- getCurrentTime
              let accessExpires = addUTCTime (secondsToNominalDiffTime $ accessTokenExpiresIn resp) currentTime
              let refreshExpires = addUTCTime (secondsToNominalDiffTime $ refreshTokenExpiresIn resp) currentTime
@@ -149,10 +150,10 @@ finishOAuthFlow creds code home = do
              case updatedHome of
                   (Just h) -> generateAndSaveUsername creds h
                   Nothing -> return $ err500 "Failed to store OAuth information"
-         _ -> return $ err500 "Actual error: Lacking token"
+         (Left err) -> return $ err500 ("Internal Server Error: " <> err)
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens :: OAuthCreds -> B.ByteString -> IO (Maybe OAuthResponse)
+getOAuthTokens :: OAuthCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
 getOAuthTokens creds code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
     res <- req
         POST
@@ -162,15 +163,15 @@ getOAuthTokens creds code = runReq defaultHttpConfig { httpConfigCheckResponse =
         (("grant_type" =: ("authorization_code" :: T.Text)) <> ("code" =: U.toString code))
 
     let oauthData = do
-            digestHeader <- responseHeader res "WWW-Authenticate"
+            digestHeader <- justOrErr "Missing WWW-Authenticate header in upstream response" $ responseHeader res "WWW-Authenticate"
             (realm, nonce) <- extractNonceAndRealm  digestHeader
             pure $ finalOAuth creds realm nonce code
 
     case oauthData of
-         (Just ioResp) -> do
+         (Right ioResp) -> do
              oresp <- liftIO ioResp
-             pure $ Just oresp
-         _ -> pure Nothing
+             pure $ pure oresp
+         (Left err) -> pure $ Left err
 
 
 finalOAuth :: OAuthCreds -> B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
@@ -261,14 +262,6 @@ lookupParam :: L.ByteString -> [Param] -> Either L.ByteString Param
 lookupParam paramName params =
     justOrErr ("Couldn't find param " <> paramName)
         $ find (paramNamed paramName) params
-
-justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
-justOrErr errMsg Nothing  = Left errMsg
-justOrErr _      (Just x) = Right x
-
-mapLeft :: (a -> b) -> Either a c -> Either b c
-mapLeft _ (Right x) = Right x
-mapLeft mapper (Left err) = Left (mapper err)
 
 -- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
 homeFrom :: [Param] -> IO (Either L.ByteString Home)

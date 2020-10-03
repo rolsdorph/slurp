@@ -2,12 +2,15 @@
 
 module OAuth where
 
+import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString               as B
 import qualified Crypto.Hash.MD5               as MD5
 import qualified Data.ByteString.Base16        as B16
 import           Text.Regex.PCRE.Light
 import           System.Environment
+
+import Util
 
 -- Type definitions
 type Nonce = B.ByteString
@@ -56,11 +59,20 @@ buildOauthRedirect creds state =
 realmex = compile "realm=\"([^\"]+)\"" []
 noncex = compile "nonce=\"([^\"]+)\"" []
 -- Extracts the realm and nonce from a WWW-Authenticate response header
-extractNonceAndRealm :: U.ByteString -> Maybe (U.ByteString, U.ByteString)
+extractNonceAndRealm :: U.ByteString -> Either L.ByteString (U.ByteString, U.ByteString)
 extractNonceAndRealm header = do
-    [_, realm] <- match realmex header []
-    [_, nonce] <- match noncex header []
-    pure (realm, nonce)
+    let realm = extractFromHeader "realm" header
+    let nonce = extractFromHeader "nonce" header
+    combineEithers realm nonce
+
+extractFromHeader :: B.ByteString -> U.ByteString -> Either L.ByteString U.ByteString
+extractFromHeader name header = do
+    let re = compile (name <> "=\"([^\"]+)\"") []
+
+    let maybeHits = match re header []
+    case maybeHits of
+         Just [full, hit] -> Right hit
+         _ -> Left (L.fromStrict name <> " not found in header from upstream")
 
 -- Given a nonce and a realm, builds the response hash for an OAuth digest header
 buildResponse :: ClientId -> ClientSecret -> Nonce -> Realm -> B.ByteString

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b963d5348bbeb81842cd7fcc5592691ec11a199fe42c82969d16525aff3d2141
+-- hash: f2100410160eae1f6c5ad1a56cfd4c9a5414ed9c035cef9123450054d42bde6c
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       Lib
       OAuth
       Types
+      Util
   other-modules:
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
