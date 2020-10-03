@@ -6,7 +6,7 @@ import           Types
 import           Lib
 import           OAuth
 import           Html
-import Util
+import           Util
 
 import           HomeDB
 import           Network.Wai
@@ -83,13 +83,15 @@ err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 
 -- Gets the value of the given param
 getParamValue :: L.ByteString -> HTTP.Query -> Either L.ByteString String
-getParamValue name params = justOrErr (name <> " not found in params") (lookupParamValue name params)
+getParamValue name params =
+    justOrErr (name <> " not found in params") (lookupParamValue name params)
 
 -- Gets the value of the given param, if present
 lookupParamValue :: L.ByteString -> HTTP.Query -> Maybe String
-lookupParamValue name params = case find (\p -> fst p == L.toStrict name) params of
-    (Just val) -> U.toString <$> snd val
-    _          -> Nothing
+lookupParamValue name params =
+    case find (\p -> fst p == L.toStrict name) params of
+        (Just val) -> U.toString <$> snd val
+        _          -> Nothing
 
 -- POST /homes
 postHome :: OAuthCreds -> [Param] -> IO Response
@@ -138,73 +140,93 @@ callbackResponse creds state code = do
 finishOAuthFlow :: OAuthCreds -> B.ByteString -> Home -> IO Response
 finishOAuthFlow creds code home = do
     tokens <- getOAuthTokens creds code
-    case tokens of 
-         (Right resp) -> do
-             currentTime <- getCurrentTime
-             let accessExpires = addUTCTime (secondsToNominalDiffTime $ accessTokenExpiresIn resp) currentTime
-             let refreshExpires = addUTCTime (secondsToNominalDiffTime $ refreshTokenExpiresIn resp) currentTime
+    case tokens of
+        (Right resp) -> do
+            currentTime <- getCurrentTime
+            let accessExpires = addUTCTime
+                    (secondsToNominalDiffTime $ accessTokenExpiresIn resp)
+                    currentTime
+            let refreshExpires = addUTCTime
+                    (secondsToNominalDiffTime $ refreshTokenExpiresIn resp)
+                    currentTime
 
-             let newHome = home { 
-                            accessToken = Just $ respAccessToken resp, 
-                            refreshToken = Just $ respRefreshToken resp,
-                            accessExpiry = Just accessExpires,
-                            refreshExpiry = Just refreshExpires,
-                            state = UsernamePending
-                 }
-             updatedHome <- updateHome newHome
-             case updatedHome of
-                  (Just h) -> generateAndSaveUsername creds h
-                  Nothing -> return $ err500 "Failed to store OAuth information"
-         (Left err) -> return $ err500 ("Internal Server Error: " <> err)
+            let newHome = home { accessToken   = Just $ respAccessToken resp
+                               , refreshToken  = Just $ respRefreshToken resp
+                               , accessExpiry  = Just accessExpires
+                               , refreshExpiry = Just refreshExpires
+                               , state         = UsernamePending
+                               }
+            updatedHome <- updateHome newHome
+            case updatedHome of
+                (Just h) -> generateAndSaveUsername creds h
+                Nothing  -> return $ err500 "Failed to store OAuth information"
+        (Left err) -> return $ err500 ("Internal Server Error: " <> err)
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens :: OAuthCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
-getOAuthTokens creds code = runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing} $ do
-    res <- req
-        POST
-        (https "api.meethue.com" /: "oauth2" /: "token")
-        NoReqBody
-        ignoreResponse
-        (("grant_type" =: ("authorization_code" :: T.Text)) <> ("code" =: U.toString code))
+getOAuthTokens
+    :: OAuthCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
+getOAuthTokens creds code =
+    runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing }
+        $ do
+              res <- req
+                  POST
+                  (https "api.meethue.com" /: "oauth2" /: "token")
+                  NoReqBody
+                  ignoreResponse
+                  (  ("grant_type" =: ("authorization_code" :: T.Text))
+                  <> ("code" =: U.toString code)
+                  )
 
-    let oauthData = do
-            digestHeader <- justOrErr "Missing WWW-Authenticate header in upstream response" $ responseHeader res "WWW-Authenticate"
-            (realm, nonce) <- extractNonceAndRealm  digestHeader
-            pure $ finalOAuth creds realm nonce code
+              let
+                  oauthData = do
+                      digestHeader <-
+                          justOrErr
+                                  "Missing WWW-Authenticate header in upstream response"
+                              $ responseHeader res "WWW-Authenticate"
+                      (realm, nonce) <- extractNonceAndRealm digestHeader
+                      pure $ finalOAuth creds realm nonce code
 
-    case oauthData of
-         (Right ioResp) -> do
-             oresp <- liftIO ioResp
-             pure $ pure oresp
-         (Left err) -> pure $ Left err
+              case oauthData of
+                  (Right ioResp) -> do
+                      oresp <- liftIO ioResp
+                      pure $ pure oresp
+                  (Left err) -> pure $ Left err
 
 
-finalOAuth :: OAuthCreds -> B.ByteString -> B.ByteString -> B.ByteString -> IO OAuthResponse
+finalOAuth
+    :: OAuthCreds
+    -> B.ByteString
+    -> B.ByteString
+    -> B.ByteString
+    -> IO OAuthResponse
 finalOAuth creds realm nonce code = do
-   let authHeader = buildDigestHeader creds nonce realm
+    let authHeader = buildDigestHeader creds nonce realm
 
-   runReq defaultHttpConfig $ do
-       res <- req
-                POST
-                (https "api.meethue.com" /: "oauth2" /: "token")
-                NoReqBody
-                jsonResponse
-                (header "Authorization" authHeader <> ("grant_type" =: ("authorization_code" :: T.Text)) <> ("code" =: U.toString code))
-       return $ responseBody res
+    runReq defaultHttpConfig $ do
+        res <- req
+            POST
+            (https "api.meethue.com" /: "oauth2" /: "token")
+            NoReqBody
+            jsonResponse
+            (  header "Authorization" authHeader
+            <> ("grant_type" =: ("authorization_code" :: T.Text))
+            <> ("code" =: U.toString code)
+            )
+        return $ responseBody res
 
 generateAndSaveUsername :: OAuthCreds -> Home -> IO Response
 generateAndSaveUsername creds home = do
     maybeUsername <- generateUsername creds home
     case maybeUsername of
-         (Right username) -> do
-             let newHome = home { hueUsername = Just username
-                                , state = Verified }
-             updatedHome <- updateHome newHome
-             
-             case updatedHome of
-                  (Just _) -> return index
-                  Nothing -> return $ err500 "Couldn't store username"
-         (Left err) -> return $ err500 ("Failed to extract username: " <> err)
+        (Right username) -> do
+            let newHome =
+                    home { hueUsername = Just username, state = Verified }
+            updatedHome <- updateHome newHome
+
+            case updatedHome of
+                (Just _) -> return index
+                Nothing  -> return $ err500 "Couldn't store username"
+        (Left err) -> return $ err500 ("Failed to extract username: " <> err)
 
 type Username = String
 -- Obtains an allow-listed username for the given home
@@ -235,7 +257,9 @@ generateUsername creds home = do
             liftIO $ print "Got username response: "
             liftIO $ print (responseBody usernameRes)
 
-            pure $ mapLeft (L.fromStrict . U.fromString) $ parseEither extractUsername (responseBody usernameRes)
+            pure $ mapLeft (L.fromStrict . U.fromString) $ parseEither
+                extractUsername
+                (responseBody usernameRes)
 
         _ -> do
             liftIO $ print "No token found"
