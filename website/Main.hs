@@ -92,14 +92,14 @@ postHome creds params = do
     parsedHome <- homeFrom params
 
     case parsedHome of
-        Just x -> do
+        Right x -> do
             print "Storing home..."
             storeHomeRes <- storeHome x
             case storeHomeRes of
                 (Just storedHome) -> oauthRedirect creds storedHome
                 Nothing           -> return $ err500 "Couldn't store home"
 
-        Nothing -> return (badRequest "Malformed request body")
+        Left e -> return (badRequest $ "Malformed request body: " <> e)
 
 oauthRedirect :: OAuthCreds -> Home -> IO Response
 oauthRedirect creds home = case oauthState home of
@@ -256,19 +256,29 @@ instance FromJSON OAuthResponse where
             <*> (read <$> o .: "access_token_expires_in")
             <*> (read <$> o .: "refresh_token_expires_in")
 
+
+lookupParam :: L.ByteString -> [Param] -> Either L.ByteString Param
+lookupParam paramName params =
+    justOrErr ("Couldn't find param " <> paramName)
+        $ find (paramNamed paramName) params
+
+justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
+justOrErr errMsg Nothing  = Left errMsg
+justOrErr _      (Just x) = Right x
+
 -- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
-homeFrom :: [Param] -> IO (Maybe Home)
+homeFrom :: [Param] -> IO (Either L.ByteString Home)
 homeFrom params = do
     currentTime <- getCurrentTime
 
-    return
-        (   Home
+    pure
+        $   Home
         <$> pure Nothing
-        <*> (C.unpack . snd <$> find (paramNamed "influxHost") params)
-        <*> (read . C.unpack . snd <$> find (paramNamed "influxPort") params)
-        <*> (isCheckboxSet <$> find (paramNamed "influxTLS") params)
-        <*> (C.unpack . snd <$> find (paramNamed "influxHost") params)
-        <*> (C.unpack . snd <$> find (paramNamed "influxPassword") params)
+        <*> (C.unpack . snd <$> lookupParam "influxHost" params)
+        <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
+        <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
+        <*> (C.unpack . snd <$> lookupParam "influxHost" params)
+        <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
         <*> pure currentTime
         <*> pure OAuthPending
         <*> pure Nothing
@@ -277,5 +287,4 @@ homeFrom params = do
         <*> pure Nothing
         <*> pure Nothing
         <*> pure Nothing
-        )
 
