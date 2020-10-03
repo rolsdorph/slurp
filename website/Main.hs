@@ -190,7 +190,7 @@ generateAndSaveUsername :: OAuthCreds -> Home -> IO Response
 generateAndSaveUsername creds home = do
     maybeUsername <- generateUsername creds home
     case maybeUsername of
-         (Just username) -> do
+         (Right username) -> do
              let newHome = home { hueUsername = Just username
                                 , state = Verified }
              updatedHome <- updateHome newHome
@@ -198,11 +198,11 @@ generateAndSaveUsername creds home = do
              case updatedHome of
                   (Just _) -> return index
                   Nothing -> return $ err500 "Couldn't store username"
-         _ -> return $ err500 "Failed to extract username"
+         (Left err) -> return $ err500 ("Failed to extract username: " <> err)
 
 type Username = String
 -- Obtains an allow-listed username for the given home
-generateUsername :: OAuthCreds -> Home -> IO (Maybe Username)
+generateUsername :: OAuthCreds -> Home -> IO (Either L.ByteString Username)
 generateUsername creds home = do
     let buttonPayload   = object ["linkbutton" .= True]
     let usernamePayload = object ["devicetype" .= appId creds]
@@ -229,11 +229,11 @@ generateUsername creds home = do
             liftIO $ print "Got username response: "
             liftIO $ print (responseBody usernameRes)
 
-            pure $ parseMaybe extractUsername (responseBody usernameRes)
+            pure $ mapLeft (L.fromStrict . U.fromString) $ parseEither extractUsername (responseBody usernameRes)
 
         _ -> do
             liftIO $ print "No token found"
-            pure Nothing
+            pure $ Left "No OAuth token found for home"
 
 extractUsername :: Value -> Parser String
 extractUsername = withArray "usernameList" $ \a -> case V.toList a of
@@ -265,6 +265,10 @@ lookupParam paramName params =
 justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
 justOrErr errMsg Nothing  = Left errMsg
 justOrErr _      (Just x) = Right x
+
+mapLeft :: (a -> b) -> Either a c -> Either b c
+mapLeft _ (Right x) = Right x
+mapLeft mapper (Left err) = Left (mapper err)
 
 -- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
 homeFrom :: [Param] -> IO (Either L.ByteString Home)
