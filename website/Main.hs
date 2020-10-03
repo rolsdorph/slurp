@@ -81,10 +81,14 @@ badRequest errMsg = responseLBS HTTP.status400
 err500 :: L.ByteString -> Response
 err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 
+-- Gets the value of the given param
+getParamValue :: L.ByteString -> HTTP.Query -> Either L.ByteString String
+getParamValue name params = justOrErr (name <> " not found in params") (lookupParamValue name params)
+
 -- Gets the value of the given param, if present
-getParamValue :: C.ByteString -> HTTP.Query -> Maybe String
-getParamValue name params = case find (\p -> fst p == name) params of
-    (Just val) -> C.unpack <$> snd val
+lookupParamValue :: L.ByteString -> HTTP.Query -> Maybe String
+lookupParamValue name params = case find (\p -> fst p == L.toStrict name) params of
+    (Just val) -> U.toString <$> snd val
     _          -> Nothing
 
 -- POST /homes
@@ -111,15 +115,16 @@ oauthRedirect creds home = case oauthState home of
 
 -- GET /callback
 oauthCallback :: OAuthCreds -> HTTP.Query -> IO Response
-oauthCallback creds queryParams = do
-    let state = getParamValue "state" queryParams
-    let code  = getParamValue "code" queryParams
+oauthCallback creds queryParams = case res of
+    Right (stateVal, codeVal) ->
+        callbackResponse creds stateVal (U.fromString codeVal)
+    Left err -> return (badRequest err)
 
-    case (state, code) of
-        (Just stateVal, Just codeVal) ->
-            callbackResponse creds stateVal (U.fromString codeVal)
-        _ ->
-            return (badRequest "Code and state parameters must both be present")
+  where
+    state = getParamValue "state" queryParams
+    code  = getParamValue "code" queryParams
+    res   = combineEithers state code
+
 
 -- Generates a callback response for the given state and code param
 callbackResponse :: OAuthCreds -> String -> B.ByteString -> IO Response
