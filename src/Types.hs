@@ -5,6 +5,18 @@ module Types where
 import           Data.Time.Clock
 import           Data.Convertible
 import           Database.HDBC.SqlValue
+import qualified Data.ByteString.UTF8          as U
+
+type ClientId = U.ByteString
+type ClientSecret = U.ByteString
+type AppId = String
+type DeviceId = String
+data AppCreds = AppCreds {
+    hueClientId :: ClientId,
+    hueClientSecret :: ClientSecret,
+    hueAppId :: AppId,
+    hueDeviceId :: DeviceId
+}
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
                        deriving Show

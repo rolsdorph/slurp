@@ -31,7 +31,7 @@ import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
 
-app :: OAuthCreds -> Application
+app :: AppCreds -> Application
 app creds request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
@@ -94,7 +94,7 @@ lookupParamValue name params =
         _          -> Nothing
 
 -- POST /homes
-postHome :: OAuthCreds -> [Param] -> IO Response
+postHome :: AppCreds -> [Param] -> IO Response
 postHome creds params = do
     parsedHome <- homeFrom params
 
@@ -108,7 +108,7 @@ postHome creds params = do
 
         Left e -> return (badRequest $ "Malformed request body: " <> e)
 
-oauthRedirect :: OAuthCreds -> Home -> IO Response
+oauthRedirect :: AppCreds -> Home -> IO Response
 oauthRedirect creds home = case oauthState home of
     Just state -> return (redirectResponse (buildOauthRedirect creds state))
     _          -> return
@@ -116,7 +116,7 @@ oauthRedirect creds home = case oauthState home of
 
 
 -- GET /callback
-oauthCallback :: OAuthCreds -> HTTP.Query -> IO Response
+oauthCallback :: AppCreds -> HTTP.Query -> IO Response
 oauthCallback creds queryParams = case res of
     Right (stateVal, codeVal) ->
         callbackResponse creds stateVal (U.fromString codeVal)
@@ -129,7 +129,7 @@ oauthCallback creds queryParams = case res of
 
 
 -- Generates a callback response for the given state and code param
-callbackResponse :: OAuthCreds -> String -> B.ByteString -> IO Response
+callbackResponse :: AppCreds -> String -> B.ByteString -> IO Response
 callbackResponse creds state code = do
     maybeHome <- getOauthPendingHome state
 
@@ -137,7 +137,7 @@ callbackResponse creds state code = do
         (Just h) -> finishOAuthFlow creds code h
         _        -> return notFound
 
-finishOAuthFlow :: OAuthCreds -> B.ByteString -> Home -> IO Response
+finishOAuthFlow :: AppCreds -> B.ByteString -> Home -> IO Response
 finishOAuthFlow creds code home = do
     tokens <- getOAuthTokens creds code
     case tokens of
@@ -164,7 +164,7 @@ finishOAuthFlow creds code home = do
 
 -- Finishes an OAuth Flow with the given access code,
 getOAuthTokens
-    :: OAuthCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
+    :: AppCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
 getOAuthTokens creds code =
     runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing }
         $ do
@@ -194,7 +194,7 @@ getOAuthTokens creds code =
 
 
 finalOAuth
-    :: OAuthCreds
+    :: AppCreds
     -> B.ByteString
     -> B.ByteString
     -> B.ByteString
@@ -214,7 +214,7 @@ finalOAuth creds realm nonce code = do
             )
         return $ responseBody res
 
-generateAndSaveUsername :: OAuthCreds -> Home -> IO Response
+generateAndSaveUsername :: AppCreds -> Home -> IO Response
 generateAndSaveUsername creds home = do
     maybeUsername <- generateUsername creds home
     case maybeUsername of
@@ -230,10 +230,10 @@ generateAndSaveUsername creds home = do
 
 type Username = String
 -- Obtains an allow-listed username for the given home
-generateUsername :: OAuthCreds -> Home -> IO (Either L.ByteString Username)
+generateUsername :: AppCreds -> Home -> IO (Either L.ByteString Username)
 generateUsername creds home = do
     let buttonPayload   = object ["linkbutton" .= True]
-    let usernamePayload = object ["devicetype" .= appId creds]
+    let usernamePayload = object ["devicetype" .= hueAppId creds]
 
     runReq defaultHttpConfig $ case accessToken home of
         (Just token) -> do

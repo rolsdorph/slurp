@@ -11,47 +11,37 @@ import           Text.Regex.PCRE.Light
 import           System.Environment
 
 import Util
+import Types
 
 -- Type definitions
 type Nonce = B.ByteString
 type Realm = B.ByteString
-type ClientId = U.ByteString
-type ClientSecret = U.ByteString
-type AppId = String
-type DeviceId = String
 type State = String
 
-data OAuthCreds = OAuthCreds {
-    clientId :: ClientId,
-    clientSecret :: ClientSecret,
-    appId :: AppId,
-    deviceId :: DeviceId
-}
-
 -- Attempts to read OAuth variables from the environment
-readCreds :: IO (Maybe OAuthCreds)
+readCreds :: IO (Maybe AppCreds)
 readCreds = do
     id       <- lookupEnv "clientId"
     secret   <- lookupEnv "clientSecret"
     appId    <- lookupEnv "appId"
     deviceId <- lookupEnv "deviceId"
     pure
-        $   OAuthCreds
+        $   AppCreds
         <$> (U.fromString <$> id)
         <*> (U.fromString <$> secret)
         <*> appId
         <*> deviceId
 
 -- Constructs an OAuth redirect url
-buildOauthRedirect :: OAuthCreds -> State -> String
+buildOauthRedirect :: AppCreds -> State -> String
 buildOauthRedirect creds state =
     "https://api.meethue.com/oauth2/auth?"
         ++ "clientid="
-        ++ U.toString (clientId creds)
+        ++ U.toString (hueClientId creds)
         ++ "&appid="
-        ++ appId creds
+        ++ hueAppId creds
         ++ "&deviceid="
-        ++ deviceId creds
+        ++ hueDeviceId creds
         ++ "&state="
         ++ state
         ++ "&response_type=code"
@@ -84,10 +74,10 @@ buildResponse clientId clientSecret nonce realm = B16.encode
     hash2 = B16.encode $ MD5.hash "POST:/oauth2/token"
 
 -- Generates the Digest auth header from the given nonce and realm
-buildDigestHeader :: OAuthCreds -> Nonce -> Realm -> B.ByteString
+buildDigestHeader :: AppCreds -> Nonce -> Realm -> B.ByteString
 buildDigestHeader creds nonce realm =
     "Digest username=\""
-        <> clientId creds
+        <> hueClientId creds
         <> "\", realm=\""
         <> realm
         <> "\""
@@ -95,5 +85,5 @@ buildDigestHeader creds nonce realm =
         <> nonce
         <> "\", uri=\"/oauth2/token\""
         <> ", response=\""
-        <> buildResponse (clientId creds) (clientSecret creds) nonce realm
+        <> buildResponse (hueClientId creds) (hueClientSecret creds) nonce realm
         <> "\""
