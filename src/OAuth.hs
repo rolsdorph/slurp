@@ -8,7 +8,6 @@ import qualified Data.ByteString               as B
 import qualified Crypto.Hash.MD5               as MD5
 import qualified Data.ByteString.Base16        as B16
 import           Text.Regex.PCRE.Light
-import           System.Environment
 
 import Util
 import Types
@@ -17,20 +16,6 @@ import Types
 type Nonce = B.ByteString
 type Realm = B.ByteString
 type State = String
-
--- Attempts to read OAuth variables from the environment
-readCreds :: IO (Maybe AppCreds)
-readCreds = do
-    id       <- lookupEnv "clientId"
-    secret   <- lookupEnv "clientSecret"
-    appId    <- lookupEnv "appId"
-    deviceId <- lookupEnv "deviceId"
-    pure
-        $   AppCreds
-        <$> (U.fromString <$> id)
-        <*> (U.fromString <$> secret)
-        <*> appId
-        <*> deviceId
 
 -- Constructs an OAuth redirect url
 buildOauthRedirect :: AppCreds -> State -> String

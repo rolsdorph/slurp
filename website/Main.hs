@@ -7,6 +7,7 @@ import           Lib
 import           OAuth
 import           Html
 import           Util
+import           Secrets
 
 import           HomeDB
 import           Network.Wai
