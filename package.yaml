@@ -41,6 +41,10 @@ dependencies:
 - aeson
 - vector
 - huemetrics
+- jose
+- lens
+- mtl
+- hspec
 
 library:
   source-dirs: src
@@ -69,7 +73,17 @@ executables:
 tests:
   minimal-hue-metrics-website-test:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:         test/main
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - minimal-hue-metrics-website
+
+  google-login-test:
+    main:                Spec.hs
+    source-dirs:         test/google-login
     ghc-options:
     - -threaded
     - -rtsopts

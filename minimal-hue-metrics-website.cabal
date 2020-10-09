@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f2100410160eae1f6c5ad1a56cfd4c9a5414ed9c035cef9123450054d42bde6c
+-- hash: 55070a9df5516dd2a5e47f2fe8c9210c4991ed2ba10e1b0f5e8eb76bcd676860
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      GoogleLogin
       HomeDB
       Html
       Lib
@@ -46,8 +47,12 @@ library
     , bytestring
     , convertible
     , cryptohash-md5
+    , hspec
     , http-types
     , huemetrics
+    , jose
+    , lens
+    , mtl
     , pcre-light
     , regex-base
     , req
@@ -77,9 +82,13 @@ executable hue-metrics-collector-exe
     , bytestring
     , convertible
     , cryptohash-md5
+    , hspec
     , http-types
     , huemetrics
+    , jose
+    , lens
     , minimal-hue-metrics-website
+    , mtl
     , pcre-light
     , regex-base
     , req
@@ -109,9 +118,50 @@ executable hue-metrics-server-exe
     , bytestring
     , convertible
     , cryptohash-md5
+    , hspec
     , http-types
     , huemetrics
+    , jose
+    , lens
     , minimal-hue-metrics-website
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , text
+    , time
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+  default-language: Haskell2010
+
+test-suite google-login-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_minimal_hue_metrics_website
+  hs-source-dirs:
+      test/google-login
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , aeson
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , convertible
+    , cryptohash-md5
+    , hspec
+    , http-types
+    , huemetrics
+    , jose
+    , lens
+    , minimal-hue-metrics-website
+    , mtl
     , pcre-light
     , regex-base
     , req
@@ -131,7 +181,7 @@ test-suite minimal-hue-metrics-website-test
   other-modules:
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
-      test
+      test/main
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
@@ -142,9 +192,13 @@ test-suite minimal-hue-metrics-website-test
     , bytestring
     , convertible
     , cryptohash-md5
+    , hspec
     , http-types
     , huemetrics
+    , jose
+    , lens
     , minimal-hue-metrics-website
+    , mtl
     , pcre-light
     , regex-base
     , req
