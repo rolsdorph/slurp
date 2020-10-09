@@ -15,7 +15,8 @@ data AppCreds = AppCreds {
     hueClientId :: ClientId,
     hueClientSecret :: ClientSecret,
     hueAppId :: AppId,
-    hueDeviceId :: DeviceId
+    hueDeviceId :: DeviceId,
+    googleClientId :: ClientId
 }
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
