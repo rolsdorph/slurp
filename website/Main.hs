@@ -8,12 +8,15 @@ import           OAuth
 import           Html
 import           Util
 import           Secrets
+import           GoogleLogin
 
 import           HomeDB
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp      as W
                                                 ( run )
-
+import qualified Crypto.JWT                    as J
+import           Crypto.JOSE.JWK
+import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
@@ -22,6 +25,7 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
+import qualified Data.ByteString.Lazy.Char8    as LB
 import qualified Data.ByteString.Char8         as C
 import qualified Data.ByteString.UTF8          as U
 import           Data.List
@@ -32,17 +36,19 @@ import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
 
-app :: AppCreds -> Application
-app creds request respond = do
+app :: AppCreds -> JWKSet -> Application
+app creds keys request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
                                         request
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"        ) -> pure index
-        ("POST", "/homes"   ) -> postHome creds (fst reqBodyParsed)
-        ("GET" , "/callback") -> oauthCallback creds (queryString request)
-        (_     , _          ) -> pure notFound
+        ("GET" , "/"        )   -> pure index
+        ("GET" , "/login"   )   -> pure loginLanding
+        ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
+        ("POST", "/homes"   )   -> postHome creds (fst reqBodyParsed)
+        ("GET" , "/callback")   -> oauthCallback creds (queryString request)
+        (_     , _          )   -> pure notFound
 
     respond response
 
@@ -55,9 +61,10 @@ main = do
     putStrLn "http://localhost:8080/"
 
     maybeCreds <- readCreds
-    case maybeCreds of
-        (Just oauthCreds) -> W.run 8080 $ logStdout (app oauthCreds)
-        Nothing           -> putStrLn "OAuth creds not loaded, not running"
+    maybeKeys <- loadKeys "resources/certs.json"
+    case (maybeCreds, maybeKeys) of
+        (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app oauthCreds keys)
+        _                            -> putStrLn "Some secrets not loaded, not running"
 
 -- Helpers for generating responses
 redirectResponse :: String -> Response
@@ -68,6 +75,12 @@ index :: Response
 index = responseFile HTTP.status200
                      [("Content-Type", "text/html")]
                      "index.html"
+                     Nothing
+
+loginLanding :: Response
+loginLanding = responseFile HTTP.status200
+                     [("Content-Type", "text/html")]
+                     "login-landing.html"
                      Nothing
 
 notFound :: Response
@@ -93,6 +106,36 @@ lookupParamValue name params =
     case find (\p -> fst p == L.toStrict name) params of
         (Just val) -> U.toString <$> snd val
         _          -> Nothing
+
+-- POST /googleAuth
+googleAuth :: AppCreds -> JWKSet -> [Param] -> IO Response
+googleAuth creds keys params = do
+    res <- decodeToken creds keys params
+    case res of
+         (Right _) -> pure $ err500 "Not implemented"
+         (Left err) -> pure $ err500 err
+
+buildGoogleClientId :: AppCreds -> Either L.ByteString J.StringOrURI
+buildGoogleClientId creds = do
+    let res = Lens.preview J.stringOrUri (googleClientId creds)
+    case res of
+         (Just r) -> pure r
+         _        -> Left "Failed to parse client ID"
+
+utf8ToLbs :: U.ByteString -> LB.ByteString
+utf8ToLbs utfString = LB.fromStrict (C.pack (U.toString utfString))
+
+decodeToken :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString J.ClaimsSet)
+decodeToken creds keys params = do
+    let tokenData = lookupParam "idtoken" params
+    let clientId = buildGoogleClientId creds
+    case (tokenData, clientId) of
+         (Right d, Right c) -> do
+             let token = J.decodeCompact $ utf8ToLbs (snd d) :: Either J.JWTError J.SignedJWT
+             case token of
+                  (Right t) -> verifyToken keys c (t :: J.SignedJWT)
+                  _ -> pure $ Left "Could not decode token"
+         _ -> pure $ Left "Failed to decode data"
 
 -- POST /homes
 postHome :: AppCreds -> [Param] -> IO Response

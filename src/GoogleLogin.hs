@@ -9,6 +9,9 @@ import           Crypto.JWT
 import           Data.Aeson
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.UTF8          as U
+import qualified Data.ByteString.Char8         as C
+
+import Util
 
 googleIssuer1 = "accounts.google.com"
 googleIssuer2 = "https://accounts.google.com"
@@ -22,8 +25,13 @@ loadKeys path = do
     keyFileData <- L.readFile path
     pure $ decode keyFileData
 
-verifyToken :: JWKSet -> StringOrURI -> SignedJWT -> IO (Either JWTError ClaimsSet)
-verifyToken keys clientId token = runExceptT $ verifyClaims (googleValSettings clientId) keys token
+pretty :: JWTError -> L.ByteString
+pretty = L.fromStrict . C.pack . show
+
+verifyToken :: JWKSet -> StringOrURI -> SignedJWT -> IO (Either L.ByteString ClaimsSet)
+verifyToken keys clientId token = do
+    res <- runExceptT $ verifyClaims (googleValSettings clientId) keys token
+    pure $ mapLeft pretty res
 
 loadKey :: FilePath -> IO (Maybe JWK)
 loadKey path = do

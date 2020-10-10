@@ -6,8 +6,10 @@ import           Data.Time.Clock
 import           Data.Convertible
 import           Database.HDBC.SqlValue
 import qualified Data.ByteString.UTF8          as U
+import qualified Data.Text                     as T
 
 type ClientId = U.ByteString
+type GoogleClientId = T.Text
 type ClientSecret = U.ByteString
 type AppId = String
 type DeviceId = String
@@ -16,7 +18,7 @@ data AppCreds = AppCreds {
     hueClientSecret :: ClientSecret,
     hueAppId :: AppId,
     hueDeviceId :: DeviceId,
-    googleClientId :: ClientId
+    googleClientId :: GoogleClientId
 }
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown

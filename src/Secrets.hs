@@ -2,6 +2,7 @@ module Secrets where
 
 import           Types
 import qualified Data.ByteString.UTF8          as U
+import qualified Data.Text                     as T
 import           System.Environment
 
 
@@ -23,4 +24,4 @@ readCreds = do
         <*> (U.fromString <$> hueClientSecret)
         <*> hueAppId
         <*> hueDeviceId
-        <*> (U.fromString <$> googleClientId)
+        <*> (T.pack <$> googleClientId)
