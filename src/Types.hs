@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Types where
 
+import           Data.Aeson
 import           Data.Time.Clock
 import           Data.Convertible
 import           Database.HDBC.SqlValue
@@ -25,10 +27,16 @@ data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
                        deriving Show
 
 instance Convertible VerificationState SqlValue where
-    safeConvert Verified = Right $ toSql "Verified"
-    safeConvert UsernamePending = Right $ toSql "UsernamePending"
-    safeConvert OAuthPending  = Right $ toSql "Pending"
-    safeConvert _        = Right $ toSql "Unknown"
+    safeConvert Verified = Right $ toSql ("Verified" :: String)
+    safeConvert UsernamePending = Right $ toSql ("UsernamePending" :: String)
+    safeConvert OAuthPending  = Right $ toSql ("Pending" :: String)
+    safeConvert _        = Right $ toSql ("Unknown" :: String)
+
+instance ToJSON VerificationState where
+    toJSON Verified = "Verified"
+    toJSON UsernamePending = "UsernamePending"
+    toJSON OAuthPending = "OAuthPending"
+    toJSON _ = "Unknown"
 
 fromString :: String -> VerificationState
 fromString s | s == "Verified"  = Verified
@@ -40,8 +48,8 @@ data AuthType = Google | UnknownAuth
               deriving Show
 
 instance Convertible AuthType SqlValue where
-    safeConvert Google = Right $ toSql "Google"
-    safeConvert _        = Right $ toSql "Unknown"
+    safeConvert Google = Right $ toSql ("Google" :: String)
+    safeConvert _        = Right $ toSql ("Unknown" :: String)
 
 authFromString :: String -> AuthType
 authFromString s | s == "Google" = Google
@@ -69,3 +77,14 @@ data Home = Home { uuid :: Maybe String
                  , refreshExpiry :: Maybe UTCTime
                  , hueUsername :: Maybe String }
     deriving Show
+
+instance ToJSON Home where
+    toJSON (Home uuid _ influxHost influxPort influxTLS _ _ createdAt state _ _ _ _ _ _)
+        = object
+            [ "id" .= uuid
+            , "influxHost" .= influxHost
+            , "influxPort" .= influxPort
+            , "influxTLS" .= influxTLS
+            , "createdAt" .= createdAt
+            , "state" .= state
+            ]

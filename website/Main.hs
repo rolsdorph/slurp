@@ -57,6 +57,7 @@ app creds keys request respond = do
         ("GET" , "/"        )   -> pure index
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
+        ("GET", "/homes"    )   -> getHomes currentUser
         ("POST", "/homes"   )   -> postHome creds currentUser (fst reqBodyParsed)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
@@ -117,6 +118,11 @@ err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 success200 :: L.ByteString -> Response
 success200 = responseLBS HTTP.status200 [("Content-Type", "text/plain")]
 
+success200Json :: ToJSON a => a -> Response
+success200Json body = responseLBS HTTP.status200
+                                  [("Content-Type", "application/json")]
+                                  (encode body)
+
 -- Gets the value of the given param
 getParamValue :: L.ByteString -> HTTP.Query -> Either L.ByteString String
 getParamValue name params =
@@ -168,6 +174,13 @@ buildGoogleClientId creds = do
     case res of
         (Just r) -> pure r
         _        -> Left "Failed to parse client ID"
+
+-- GET /homes
+getHomes :: Maybe User -> IO Response
+getHomes Nothing            = pure unauthenticated
+getHomes (Just currentUser) = do
+    homes <- getUserHomes (userId currentUser)
+    pure $ success200Json homes
 
 -- POST /homes
 postHome :: AppCreds -> Maybe User -> [Param] -> IO Response

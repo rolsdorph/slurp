@@ -101,6 +101,15 @@ storeHome home = do
         1 -> return $ Just (home { uuid = Just uuid, oauthState = Just oauthState })
         _ -> return Nothing
 
+-- Retrieves all Homes for the given ownerId
+getUserHomes :: String -> IO [Home]
+getUserHomes ownerId = do
+    conn <- connectSqlite3 dbName
+    stmt <- prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE ownerId = ?")
+    res <- execute stmt [toSql ownerId]
+    homes <- fetchAllRowsAL stmt
+    pure $ mapMaybe parseHomeRow homes
+
 -- Retrieves all Homes that are in the Verified  state
 getVerifiedHomes :: IO [Home]
 getVerifiedHomes = do
