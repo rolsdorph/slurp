@@ -1,13 +1,12 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module HomeDB
     where
 
 import Types
+import DBUtil
 
 import           Data.Maybe
-import           Data.Convertible.Base
 import           Data.List
 import           Data.Time.Clock
 import           Database.HDBC
@@ -153,13 +152,3 @@ parseHomeRow vals =
         <*> pure (valFrom "accessExpiry" vals)
         <*> pure (valFrom "refreshExpiry" vals)
         <*> pure (valFrom "hueUsername" vals)
-
-valFrom
-    :: Convertible SqlValue (Maybe a)
-    => String
-    -> [(String, SqlValue)]
-    -> Maybe a
-valFrom colName allVals = case maybeSqlVal of
-    (Just sqlVal) -> fromSql sqlVal
-    _             -> Nothing
-    where maybeSqlVal = snd <$> find (\v -> fst v == colName) allVals

@@ -36,6 +36,23 @@ fromString s | s == "Verified"  = Verified
              | s == "OAuthPending" = OAuthPending 
              | otherwise       = Unknown
 
+data AuthType = Google | UnknownAuth
+              deriving Show
+
+instance Convertible AuthType SqlValue where
+    safeConvert Google = Right $ toSql "Google"
+    safeConvert _        = Right $ toSql "Unknown"
+
+authFromString :: String -> AuthType
+authFromString s | s == "Google" = Google
+                 | otherwise     = UnknownAuth
+
+data User = User { userId :: String,
+                   userCreatedAt :: UTCTime,
+                   authType :: AuthType,
+                   googleUuid :: Maybe String }
+    deriving Show
+
 data Home = Home { uuid :: Maybe String
                  , influxHost :: String
                  , influxPort :: Int
