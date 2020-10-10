@@ -2,6 +2,8 @@
 
 module Util where
 
+import qualified Data.ByteString.Char8         as C
+import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString.Lazy          as L
 
 justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
@@ -22,3 +24,5 @@ combineEithers (Left errX) (Left errY) = Left (errX <> ", " <> errY)
 combineEithers (Left errX) _ = Left errX
 combineEithers _ (Left errY) = Left errY
 
+utf8ToLbs :: U.ByteString -> L.ByteString
+utf8ToLbs utfString = L.fromStrict (C.pack (U.toString utfString))

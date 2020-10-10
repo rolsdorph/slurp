@@ -136,9 +136,6 @@ buildGoogleClientId creds = do
         (Just r) -> pure r
         _        -> Left "Failed to parse client ID"
 
-utf8ToLbs :: U.ByteString -> LB.ByteString
-utf8ToLbs utfString = LB.fromStrict (C.pack (U.toString utfString))
-
 -- POST /homes
 postHome :: AppCreds -> [Param] -> IO Response
 postHome creds params = do
