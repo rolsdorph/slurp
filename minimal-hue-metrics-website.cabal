@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9e1cf2094f1f36aa9ce137eef69545db3a2fbcb798766f3c11bb01e9cc57b54a
+-- hash: 79e6eb8645d8303de9211ac951b8f2c11a64cc13227d0d102461b2ab4666cf2f
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -50,6 +50,7 @@ library
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
+    , case-insensitive
     , convertible
     , cryptohash-md5
     , hspec
@@ -61,6 +62,7 @@ library
     , pcre-light
     , regex-base
     , req
+    , stringsearch
     , text
     , time
     , utf8-string
@@ -85,6 +87,7 @@ executable hue-metrics-collector-exe
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
+    , case-insensitive
     , convertible
     , cryptohash-md5
     , hspec
@@ -97,6 +100,7 @@ executable hue-metrics-collector-exe
     , pcre-light
     , regex-base
     , req
+    , stringsearch
     , text
     , time
     , utf8-string
@@ -121,6 +125,7 @@ executable hue-metrics-server-exe
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
+    , case-insensitive
     , convertible
     , cryptohash-md5
     , hspec
@@ -133,6 +138,7 @@ executable hue-metrics-server-exe
     , pcre-light
     , regex-base
     , req
+    , stringsearch
     , text
     , time
     , utf8-string
@@ -158,6 +164,7 @@ test-suite google-login-test
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
+    , case-insensitive
     , convertible
     , cryptohash-md5
     , hspec
@@ -170,6 +177,7 @@ test-suite google-login-test
     , pcre-light
     , regex-base
     , req
+    , stringsearch
     , text
     , time
     , utf8-string
@@ -195,6 +203,7 @@ test-suite minimal-hue-metrics-website-test
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
+    , case-insensitive
     , convertible
     , cryptohash-md5
     , hspec
@@ -207,6 +216,7 @@ test-suite minimal-hue-metrics-website-test
     , pcre-light
     , regex-base
     , req
+    , stringsearch
     , text
     , time
     , utf8-string

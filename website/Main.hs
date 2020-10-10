@@ -17,6 +17,7 @@ import           HomeDB
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp      as W
                                                 ( run )
+import qualified Data.CaseInsensitive          as CI
 import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
@@ -30,6 +31,7 @@ import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Lazy.Char8    as LB
 import qualified Data.ByteString.Char8         as C
+import qualified Data.ByteString.Search        as SS
 import qualified Data.ByteString.UTF8          as U
 import           Data.List
 import           Data.Fixed
@@ -45,15 +47,24 @@ app creds keys request respond = do
                                         lbsBackEnd
                                         request
 
+    let lookupAuth = Auth.verifyToken . extractBearerToken <$> getRequestHeader "Authorization" request
+
+    currentUser <- case lookupAuth of
+                        (Just u) -> u
+                        _ -> pure Nothing
+
     response <- case (requestMethod request, rawPathInfo request) of
         ("GET" , "/"        )   -> pure index
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
-        ("POST", "/homes"   )   -> postHome creds (fst reqBodyParsed)
+        ("POST", "/homes"   )   -> postHome creds currentUser (fst reqBodyParsed)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
 
     respond response
+
+extractBearerToken :: HTTP.Header -> L.ByteString
+extractBearerToken header = SS.replace "Bearer " ("" :: B.ByteString) (snd header)
 
 main :: IO ()
 main = do
@@ -87,6 +98,9 @@ loginLanding = responseFile HTTP.status200
                      [("Content-Type", "text/html")]
                      "login-landing.html"
                      Nothing
+unauthenticated :: Response
+unauthenticated =
+    responseLBS HTTP.status401 [("Content-Type", "text/plain")] "Not authenticated >:("
 
 notFound :: Response
 notFound =
@@ -156,9 +170,10 @@ buildGoogleClientId creds = do
         _        -> Left "Failed to parse client ID"
 
 -- POST /homes
-postHome :: AppCreds -> [Param] -> IO Response
-postHome creds params = do
-    parsedHome <- homeFrom params
+postHome :: AppCreds -> Maybe User -> [Param] -> IO Response
+postHome _ Nothing _ = pure unauthenticated
+postHome creds (Just currentUser) params = do
+    parsedHome <- homeFrom currentUser params
 
     case parsedHome of
         Right x -> do
@@ -348,6 +363,8 @@ instance FromJSON OAuthResponse where
             <*> (read <$> o .: "access_token_expires_in")
             <*> (read <$> o .: "refresh_token_expires_in")
 
+getRequestHeader :: U.ByteString -> Request -> Maybe HTTP.Header
+getRequestHeader headerName req = find (\h -> fst h == CI.mk(headerName)) (requestHeaders req)
 
 lookupParam :: L.ByteString -> [Param] -> Either L.ByteString Param
 lookupParam paramName params =
@@ -355,14 +372,14 @@ lookupParam paramName params =
         $ find (paramNamed paramName) params
 
 -- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
-homeFrom :: [Param] -> IO (Either L.ByteString Home)
-homeFrom params = do
+homeFrom :: User -> [Param] -> IO (Either L.ByteString Home)
+homeFrom currentUser params = do
     currentTime <- getCurrentTime
 
     pure
         $   Home
         <$> pure Nothing
-        <*> pure Nothing
+        <*> pure (Just $ userId currentUser)
         <*> (C.unpack . snd <$> lookupParam "influxHost" params)
         <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
         <*> (isCheckboxSet <$> lookupParam "influxTLS" params)

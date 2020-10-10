@@ -45,6 +45,8 @@ dependencies:
 - lens
 - mtl
 - hspec
+- case-insensitive
+- stringsearch
 
 library:
   source-dirs: src

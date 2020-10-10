@@ -81,10 +81,11 @@ storeHome home = do
         conn
         ("INSERT INTO "
         ++ homeTableName
-        ++ "(uuid, createdAt, oauthState, influxHost, influxPort, influxTLS, influxUsername, influxPassword) \
-                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ++ "(uuid, ownerId, createdAt, oauthState, influxHost, influxPort, influxTLS, influxUsername, influxPassword) \
+                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid
+        , toSql $ ownerId home
         , toSql $ createdAt home
         , toSql oauthState
         , toSql $ influxHost home
