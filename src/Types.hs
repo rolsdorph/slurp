@@ -54,6 +54,7 @@ data User = User { userId :: String,
     deriving Show
 
 data Home = Home { uuid :: Maybe String
+                 , ownerId :: Maybe String
                  , influxHost :: String
                  , influxPort :: Int
                  , influxTLS :: Bool

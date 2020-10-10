@@ -22,6 +22,7 @@ createStmt =
         ++ homeTableName
         ++ " (\
        \ uuid text NOT NULL, \
+       \ ownerId text NOT NULL, \
        \ state text DEFAULT 'Pending',\
        \ oauthState text NULL,\
        \ accessToken text NULL,\
@@ -139,6 +140,7 @@ parseHomeRow :: [(String, SqlValue)] -> Maybe Home
 parseHomeRow vals =
     Home
         <$> valFrom "uuid" vals
+        <*> pure (valFrom "ownerId" vals)
         <*> valFrom "influxHost" vals
         <*> valFrom "influxPort" vals
         <*> valFrom "influxTLS" vals

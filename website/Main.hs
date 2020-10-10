@@ -346,6 +346,7 @@ homeFrom params = do
     pure
         $   Home
         <$> pure Nothing
+        <*> pure Nothing
         <*> (C.unpack . snd <$> lookupParam "influxHost" params)
         <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
         <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
