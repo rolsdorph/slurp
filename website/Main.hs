@@ -110,32 +110,34 @@ lookupParamValue name params =
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> IO Response
 googleAuth creds keys params = do
-    res <- decodeToken creds keys params
-    case res of
-         (Right _) -> pure $ err500 "Not implemented"
-         (Left err) -> pure $ err500 err
+    maybeId <- validateAndGetId creds keys params
+    case maybeId of
+        (Right uid) -> pure $ err500 ("Could not log in " <> uid)
+        (Left  err) -> pure $ err500 err
+
+validateAndGetId
+    :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString L.ByteString)
+validateAndGetId creds keys params = do
+    (Right googleClientId) <- pure $ buildGoogleClientId creds
+    (Right tokenParam    ) <- pure $ lookupParam "idtoken" params
+    (Right token         ) <- pure
+        ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either
+              J.JWTError
+              J.SignedJWT
+        )
+    (Right claims) <- verifyToken keys googleClientId token
+    (Right uid   ) <- pure $ extractUserId claims
+    pure $ Right uid
 
 buildGoogleClientId :: AppCreds -> Either L.ByteString J.StringOrURI
 buildGoogleClientId creds = do
     let res = Lens.preview J.stringOrUri (googleClientId creds)
     case res of
-         (Just r) -> pure r
-         _        -> Left "Failed to parse client ID"
+        (Just r) -> pure r
+        _        -> Left "Failed to parse client ID"
 
 utf8ToLbs :: U.ByteString -> LB.ByteString
 utf8ToLbs utfString = LB.fromStrict (C.pack (U.toString utfString))
-
-decodeToken :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString J.ClaimsSet)
-decodeToken creds keys params = do
-    let tokenData = lookupParam "idtoken" params
-    let clientId = buildGoogleClientId creds
-    case (tokenData, clientId) of
-         (Right d, Right c) -> do
-             let token = J.decodeCompact $ utf8ToLbs (snd d) :: Either J.JWTError J.SignedJWT
-             case token of
-                  (Right t) -> verifyToken keys c (t :: J.SignedJWT)
-                  _ -> pure $ Left "Could not decode token"
-         _ -> pure $ Left "Failed to decode data"
 
 -- POST /homes
 postHome :: AppCreds -> [Param] -> IO Response
