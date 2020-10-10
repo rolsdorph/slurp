@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ebefcba0cbbdba29ed7793e1045a35f70dc53db1e92e75e51f1040f66c47168a
+-- hash: 9e1cf2094f1f36aa9ce137eef69545db3a2fbcb798766f3c11bb01e9cc57b54a
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Auth
       DBUtil
       GoogleLogin
       HomeDB
@@ -34,6 +35,7 @@ library
       Lib
       OAuth
       Secrets
+      TokenDB
       Types
       UserDB
       Util

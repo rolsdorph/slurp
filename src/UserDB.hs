@@ -14,6 +14,7 @@ import           Database.HDBC
 import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
+import qualified Data.ByteString.Char8         as C
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 userTableName = "users" :: String
@@ -33,8 +34,21 @@ setupDb = do
     commit conn
     disconnect conn
 
+getUser :: L.ByteString -> IO (Maybe User)
+getUser userId = do
+    conn <- connectSqlite3 dbName
+    stmt <- prepare conn
+                    ("SELECT * FROM " ++ userTableName ++ " WHERE uuid = ?")
+    numRows  <- execute stmt [toSql userId]
+    firstHit <- fetchRowAL stmt
+    disconnect conn
+
+    case firstHit of
+        (Just row) -> return $ parseUserRow row
+        _          -> return Nothing
+
 -- Fetches the user with the given Google UUID, creating a new user if it doesn't exist
-fetchOrCreateGoogleUser :: String -> IO (Maybe User)
+fetchOrCreateGoogleUser :: L.ByteString -> IO (Maybe User)
 fetchOrCreateGoogleUser googleId = do
     conn <- connectSqlite3 dbName
     stmt <- prepare
@@ -46,19 +60,19 @@ fetchOrCreateGoogleUser googleId = do
 
     case firstHit of
         (Just row) -> do
-           print $ "Found user with Google UUID " ++ googleId
+           print $ "Found user with Google UUID " <> googleId
            return $ parseUserRow row
         _          -> createGoogleUser googleId
 
 -- Creates a new user with the given Google UUID
-createGoogleUser :: String -> IO (Maybe User)
+createGoogleUser :: L.ByteString -> IO (Maybe User)
 createGoogleUser googleId = do
-    print $ "Creating user with Google UUID " ++ googleId
+    print $ "Creating user with Google UUID " <> googleId
 
     uuid <- show <$> nextRandom
     now  <- getCurrentTime
 
-    let newUser = User uuid now Google (Just googleId)
+    let newUser = User uuid now Google (Just $ (C.unpack . L.toStrict) googleId)
 
     conn        <- connectSqlite3 dbName
     numInserted <- run
