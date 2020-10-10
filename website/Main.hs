@@ -9,6 +9,9 @@ import           Html
 import           Util
 import           Secrets
 import           GoogleLogin
+import           UserDB
+import           Auth
+import           TokenDB
 
 import           HomeDB
 import           Network.Wai
@@ -55,7 +58,9 @@ app creds keys request respond = do
 main :: IO ()
 main = do
     -- Create necessary tables if they don't exist
-    setupDb
+    UserDB.setupDb
+    HomeDB.setupDb
+    TokenDB.setupDb
 
      -- Flex some IO
     putStrLn "http://localhost:8080/"
@@ -95,6 +100,9 @@ badRequest errMsg = responseLBS HTTP.status400
 err500 :: L.ByteString -> Response
 err500 = responseLBS HTTP.status500 [("Content-Type", "text/plain")]
 
+success200 :: L.ByteString -> Response
+success200 = responseLBS HTTP.status200 [("Content-Type", "text/plain")]
+
 -- Gets the value of the given param
 getParamValue :: L.ByteString -> HTTP.Query -> Either L.ByteString String
 getParamValue name params =
@@ -112,8 +120,19 @@ googleAuth :: AppCreds -> JWKSet -> [Param] -> IO Response
 googleAuth creds keys params = do
     maybeId <- validateAndGetId creds keys params
     case maybeId of
-        (Right uid) -> pure $ err500 ("Could not log in " <> uid)
-        (Left  err) -> pure $ err500 err
+        (Right uid) -> do
+           maybeUser <- fetchOrCreateGoogleUser uid
+           case maybeUser of
+                (Just user) -> loginResponse user
+                _ -> pure $ err500 "Internal server error: Could not authenticate user"
+        (Left err) -> pure $ err500 err
+
+loginResponse :: User -> IO Response
+loginResponse user = do
+    token <- login $ userId user
+    case token of
+         (Right t) -> pure $ success200 ((L.fromStrict . C.pack) t)
+         _ -> pure $ err500 "Login error"
 
 validateAndGetId
     :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString L.ByteString)
@@ -125,7 +144,7 @@ validateAndGetId creds keys params = do
               J.JWTError
               J.SignedJWT
         )
-    (Right claims) <- verifyToken keys googleClientId token
+    (Right claims) <- GoogleLogin.verifyToken keys googleClientId token
     (Right uid   ) <- pure $ extractUserId claims
     pure $ Right uid
 
