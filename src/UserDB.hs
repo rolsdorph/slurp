@@ -47,6 +47,15 @@ getUser userId = do
         (Just row) -> return $ parseUserRow row
         _          -> return Nothing
 
+-- Fetches all users
+getAllUsers :: IO [User]
+getAllUsers = do
+    conn  <- connectSqlite3 dbName
+    stmt  <- prepare conn ("SELECT * FROM " ++ userTableName)
+    res   <- execute stmt []
+    users <- fetchAllRowsAL stmt
+    pure $ mapMaybe parseUserRow users
+
 -- Fetches the user with the given Google UUID, creating a new user if it doesn't exist
 fetchOrCreateGoogleUser :: L.ByteString -> IO (Maybe User)
 fetchOrCreateGoogleUser googleId = do

@@ -12,6 +12,7 @@ import           GoogleLogin
 import           UserDB
 import           Auth
 import           TokenDB
+import           InfluxDB
 
 import           HomeDB
 import           Network.Wai
@@ -73,6 +74,7 @@ main = do
     UserDB.setupDb
     HomeDB.setupDb
     TokenDB.setupDb
+    InfluxDB.setupDb
 
      -- Flex some IO
     putStrLn "http://localhost:8080/"
@@ -184,19 +186,23 @@ getHomes (Just currentUser) = do
 
 -- POST /homes
 postHome :: AppCreds -> Maybe User -> [Param] -> IO Response
-postHome _ Nothing _ = pure unauthenticated
+postHome _     Nothing            _      = pure unauthenticated
 postHome creds (Just currentUser) params = do
-    parsedHome <- homeFrom currentUser params
+    home       <- homeFrom currentUser params
+    parsedSink <- influxSinkFrom currentUser params
 
-    case parsedHome of
-        Right x -> do
+    case parsedSink of
+        (Right sink) -> do
             print "Storing home..."
-            storeHomeRes <- storeHome x
-            case storeHomeRes of
-                (Just storedHome) -> oauthRedirect creds storedHome
-                Nothing           -> return $ err500 "Couldn't store home"
+            storeHomeRes <- storeHome home
+            print "Storing sink..."
+            storeSinkRes <- storeInfluxSink sink
 
-        Left e -> return (badRequest $ "Malformed request body: " <> e)
+            case (storeHomeRes, storeSinkRes) of
+                (Just storedHome, Just _) -> oauthRedirect creds storedHome
+                _ -> return $ err500 "Couldn't complete operation"
+
+        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
 
 oauthRedirect :: AppCreds -> Home -> IO Response
 oauthRedirect creds home = case oauthState home of
@@ -377,20 +383,26 @@ instance FromJSON OAuthResponse where
             <*> (read <$> o .: "refresh_token_expires_in")
 
 getRequestHeader :: U.ByteString -> Request -> Maybe HTTP.Header
-getRequestHeader headerName req = find (\h -> fst h == CI.mk(headerName)) (requestHeaders req)
+getRequestHeader headerName req = find (\h -> fst h == CI.mk headerName) (requestHeaders req)
 
 lookupParam :: L.ByteString -> [Param] -> Either L.ByteString Param
 lookupParam paramName params =
     justOrErr ("Couldn't find param " <> paramName)
         $ find (paramNamed paramName) params
 
--- Attempts to construct a Home DTO from a set of parameters originating from a HTTP request
-homeFrom :: User -> [Param] -> IO (Either L.ByteString Home)
+-- Constructs a new Home DTO with the given user as the owner
+homeFrom :: User -> [Param] -> IO Home
 homeFrom currentUser params = do
     currentTime <- getCurrentTime
 
-    pure
-        $   Home
+    pure $ Home Nothing (Just $ userId currentUser) currentTime OAuthPending Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
+influxSinkFrom :: User -> [Param] -> IO (Either L.ByteString InfluxSink)
+influxSinkFrom currentUser params = do
+    currentTime <- getCurrentTime
+
+    pure $ InfluxSink
         <$> pure Nothing
         <*> pure (Just $ userId currentUser)
         <*> (C.unpack . snd <$> lookupParam "influxHost" params)
@@ -399,11 +411,3 @@ homeFrom currentUser params = do
         <*> (C.unpack . snd <$> lookupParam "influxHost" params)
         <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
         <*> pure currentTime
-        <*> pure OAuthPending
-        <*> pure Nothing
-        <*> pure Nothing
-        <*> pure Nothing
-        <*> pure Nothing
-        <*> pure Nothing
-        <*> pure Nothing
-

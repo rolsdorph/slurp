@@ -63,11 +63,6 @@ data User = User { userId :: String,
 
 data Home = Home { uuid :: Maybe String
                  , ownerId :: Maybe String
-                 , influxHost :: String
-                 , influxPort :: Int
-                 , influxTLS :: Bool
-                 , influxUsername :: String
-                 , influxPassword :: String
                  , createdAt :: UTCTime
                  , state :: VerificationState
                  , oauthState :: Maybe String
@@ -79,12 +74,29 @@ data Home = Home { uuid :: Maybe String
     deriving Show
 
 instance ToJSON Home where
-    toJSON (Home uuid _ influxHost influxPort influxTLS _ _ createdAt state _ _ _ _ _ _)
+    toJSON (Home uuid _ createdAt state _ _ _ _ _ _)
+        = object
+            [ "id" .= uuid
+            , "state" .= state
+            , "createdAt" .= createdAt
+            ]
+
+data InfluxSink = InfluxSink { influxUuid :: Maybe String
+                 , influxOwnerId :: Maybe String
+                 , influxHost :: String
+                 , influxPort :: Int
+                 , influxTLS :: Bool
+                 , influxUsername :: String
+                 , influxPassword :: String
+                 , influxCreatedAt :: UTCTime }
+    deriving Show
+
+instance ToJSON InfluxSink where
+    toJSON (InfluxSink uuid _ influxHost influxPort influxTLS _ _ createdAt)
         = object
             [ "id" .= uuid
             , "influxHost" .= influxHost
             , "influxPort" .= influxPort
             , "influxTLS" .= influxTLS
             , "createdAt" .= createdAt
-            , "state" .= state
             ]
