@@ -59,7 +59,7 @@ app creds keys request respond = do
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/homes"    )   -> getHomes currentUser
-        ("POST", "/homes"   )   -> postHome creds currentUser (fst reqBodyParsed)
+        ("POST", "/homes"   )   -> postHome creds currentUser (queryString request) (fst reqBodyParsed)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
 
@@ -185,11 +185,15 @@ getHomes (Just currentUser) = do
     pure $ success200Json homes
 
 -- POST /homes
-postHome :: AppCreds -> Maybe User -> [Param] -> IO Response
-postHome _     Nothing            _      = pure unauthenticated
-postHome creds (Just currentUser) params = do
+postHome :: AppCreds -> Maybe User -> HTTP.Query -> [Param] -> IO Response
+postHome _     Nothing            _           _      = pure unauthenticated
+postHome creds (Just currentUser) queryParams params = do
     home       <- homeFrom currentUser params
     parsedSink <- influxSinkFrom currentUser params
+    let redirectInBodyQParam = getParamValue "redirectUrlInBody" queryParams
+    let redirectInBody = case redirectInBodyQParam of
+            (Right "true") -> True
+            _              -> False
 
     case parsedSink of
         (Right sink) -> do
@@ -199,16 +203,22 @@ postHome creds (Just currentUser) params = do
             storeSinkRes <- storeInfluxSink sink
 
             case (storeHomeRes, storeSinkRes) of
-                (Just storedHome, Just _) -> oauthRedirect creds storedHome
+                (Just storedHome, Just _) ->
+                    oauthRedirect creds storedHome redirectInBody
                 _ -> return $ err500 "Couldn't complete operation"
 
         (Left e) -> return (badRequest $ "Malformed request body: " <> e)
 
-oauthRedirect :: AppCreds -> Home -> IO Response
-oauthRedirect creds home = case oauthState home of
-    Just state -> return (redirectResponse (buildOauthRedirect creds state))
-    _          -> return
-        (err500 "Internal Server Error - did not find expected OAuth state")
+oauthRedirect :: AppCreds -> Home -> Bool -> IO Response
+oauthRedirect creds home redirectInBody = case oauthState home of
+    Just state -> do
+        let redirectTarget = buildOauthRedirect creds state
+        if redirectInBody
+            then return $ success200Json redirectTarget
+            else return $ redirectResponse redirectTarget
+    _ ->
+        return
+            (err500 "Internal Server Error - did not find expected OAuth state")
 
 
 -- GET /callback
