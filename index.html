@@ -1,20 +1,99 @@
 <html>
-    <head>
-        <title>Hue Metrics Collector</title>
-    </head>
-    <body>
-        <form action="/homes" method="POST">
-            <label for="influxHost">Influx host:</label>
-            <input type="text" name="influxHost" id="influxHost"/><br/>
-            <label for="influxPort">Influx port:</label>
-            <input type="text" name="influxPort" id="influxPort"/><br/>
-            <label for="influxTLS">Use TLS:</label>
-            <input type="checkbox" name="influxTLS" id="influxTLS"/><br/>
-            <label for="influxUsername">Influx username:</label>
-            <input type="text" name="influxUsername" id="influxUsername" value=""/><br/>
-            <label for="influxPassword">Influx password:</label>
-            <input type="password" name="influxPassword" id="influxPassword"/><br/>
-            <input type="submit" value="Create home"/>
-        </form>
-    </body>
+
+<head>
+    <title>Hue Metrics Collector</title>
+    <script>
+        function addAuth(xhrRequest) {
+            xhrRequest.setRequestHeader(
+                "Authorization",
+                `Bearer ${window.localStorage.getItem("authToken")}`
+            );
+        }
+
+        // Performs an authenticated GET to the given URL and renders a
+        // stringification of each returned element in the target div
+        // (expects the GET to return a JSON list)
+        function getAndRender(targetDiv, url) {
+            const XHR = new XMLHttpRequest();
+
+            XHR.addEventListener("load", function (event) {
+                renderJsonList(targetDiv, XHR.response);
+            });
+
+            XHR.responseType = "json";
+            XHR.open("GET", url);
+            addAuth(XHR);
+            XHR.send();
+        }
+
+        function renderJsonList(target, elements) {
+            for (const element of elements) {
+                const domNode = document.createElement("div")
+                domNode.innerText = JSON.stringify(element);
+                target.appendChild(domNode);
+            }
+        }
+
+        function loadHomes() {
+            const targetDiv = document.getElementById("homeList");
+            getAndRender(targetDiv, "/homes");
+        }
+
+        function addHome(form) {
+            const XHR = new XMLHttpRequest();
+
+            XHR.addEventListener("load", function (event) {
+                if (XHR.status === 200) {
+                    window.location = XHR.response;
+                } else {
+                    console.error(`Unexpected status code ${xhr.status}`);
+                }
+            });
+
+            XHR.addEventListener("error", function (err) {
+                console.log(err);
+            });
+
+            XHR.responseType = "json";
+            XHR.open("POST", "/homes?redirectUrlInBody=true");
+            addAuth(XHR);
+            XHR.send(new FormData(form));
+        }
+
+        window.addEventListener("load", function () {
+            const form = document.getElementById("homeForm");
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                addHome(form);
+            });
+
+            loadHomes();
+        });
+    </script>
+</head>
+
+<body>
+    <h1>Welcome to my data page</h1>
+    <form id="homeForm">
+        <label for="influxHost">Influx host:</label>
+        <input type="text" name="influxHost" id="influxHost" /><br />
+        <label for="influxPort">Influx port:</label>
+        <input type="text" name="influxPort" id="influxPort" /><br />
+        <label for="influxTLS">Use TLS:</label>
+        <input type="checkbox" name="influxTLS" id="influxTLS" /><br />
+        <label for="influxUsername">Influx username:</label>
+        <input type="text" name="influxUsername" id="influxUsername" value="" /><br />
+        <label for="influxPassword">Influx password:</label>
+        <input type="password" name="influxPassword" id="influxPassword" /><br />
+        <input type="submit" value="Create home" />
+    </form>
+
+    <h2>Homes</h2>
+    <div id="homeList"></div>
+
+    <h2>Influxii</h2>
+    <div id="influxList"></div>
+</body>
+
 </html>
