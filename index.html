@@ -39,6 +39,11 @@
             getAndRender(targetDiv, "/homes");
         }
 
+        function loadSinks() {
+            const targetDiv = document.getElementById("influxList");
+            getAndRender(targetDiv, "/sinks");
+        }
+
         function addHome(form) {
             const XHR = new XMLHttpRequest();
 
@@ -69,6 +74,7 @@
             });
 
             loadHomes();
+            loadSinks();
         });
     </script>
 </head>

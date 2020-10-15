@@ -58,6 +58,7 @@ app creds keys request respond = do
         ("GET" , "/"        )   -> pure index
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
+        ("GET", "/sinks"    )   -> getSinks currentUser
         ("GET", "/homes"    )   -> getHomes currentUser
         ("POST", "/homes"   )   -> postHome creds currentUser (queryString request) (fst reqBodyParsed)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
@@ -176,6 +177,13 @@ buildGoogleClientId creds = do
     case res of
         (Just r) -> pure r
         _        -> Left "Failed to parse client ID"
+
+-- GET /sinks
+getSinks :: Maybe User -> IO Response
+getSinks Nothing            = pure unauthenticated
+getSinks (Just currentUser) = do
+    sinks <- getUserInfluxSinks (userId currentUser)
+    pure $ success200Json sinks
 
 -- GET /homes
 getHomes :: Maybe User -> IO Response
