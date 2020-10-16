@@ -18,6 +18,10 @@ readCreds = do
     -- Login with Google secrets
     googleClientId <- lookupEnv "googleClientId"
 
+    -- Spotify secrets
+    spotifyClientId <- lookupEnv "spotifyClientId"
+    spotifyRedirectUri <- lookupEnv "spotifyRedirectUri"
+
     pure
         $   AppCreds
         <$> (U.fromString <$> hueClientId)
@@ -25,3 +29,5 @@ readCreds = do
         <*> hueAppId
         <*> hueDeviceId
         <*> (T.pack <$> googleClientId)
+        <*> spotifyClientId
+        <*> spotifyRedirectUri

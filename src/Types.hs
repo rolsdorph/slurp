@@ -20,7 +20,9 @@ data AppCreds = AppCreds {
     hueClientSecret :: ClientSecret,
     hueAppId :: AppId,
     hueDeviceId :: DeviceId,
-    googleClientId :: GoogleClientId
+    googleClientId :: GoogleClientId,
+    spotifyClientId :: String,
+    spotifyRedirectUri :: String
 }
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown

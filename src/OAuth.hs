@@ -31,6 +31,19 @@ buildHueOauthRedirect creds state =
         ++ state
         ++ "&response_type=code"
 
+-- Constructs a Spotify OAuth redirect url
+buildSpotifyOauthRedirect :: AppCreds -> State -> String
+buildSpotifyOauthRedirect creds state =
+    "https://accounts.spotify.com/authorize"
+        ++ "clientid="
+        ++ spotifyClientId creds
+        ++ "&response_type=code"
+        ++ "&redirect_uri="
+        ++ spotifyRedirectUri creds
+        ++ "&state="
+        ++ state
+        ++ "&scope=user-read-recently-played user-read-playback-state user-read-playback-state user-read-playback-state user-read-playback-state user-read-playback-state"
+
 realmex = compile "realm=\"([^\"]+)\"" []
 noncex = compile "nonce=\"([^\"]+)\"" []
 -- Extracts the realm and nonce from a WWW-Authenticate response header
