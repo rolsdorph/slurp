@@ -236,7 +236,7 @@ postHome creds (Just currentUser) queryParams = do
 oauthRedirect :: AppCreds -> Home -> Bool -> IO Response
 oauthRedirect creds home redirectInBody = case oauthState home of
     Just state -> do
-        let redirectTarget = buildOauthRedirect creds state
+        let redirectTarget = buildHueOauthRedirect creds state
         if redirectInBody
             then return $ success200Json redirectTarget
             else return $ redirectResponse redirectTarget

@@ -17,9 +17,9 @@ type Nonce = B.ByteString
 type Realm = B.ByteString
 type State = String
 
--- Constructs an OAuth redirect url
-buildOauthRedirect :: AppCreds -> State -> String
-buildOauthRedirect creds state =
+-- Constructs a Hue OAuth redirect url
+buildHueOauthRedirect :: AppCreds -> State -> String
+buildHueOauthRedirect creds state =
     "https://api.meethue.com/oauth2/auth?"
         ++ "clientid="
         ++ U.toString (hueClientId creds)
