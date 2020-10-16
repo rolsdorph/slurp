@@ -59,6 +59,7 @@ app creds keys request respond = do
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"    )   -> getSinks currentUser
+        ("POST", "/sinks"   )   -> postSink creds currentUser (queryString request) (fst reqBodyParsed)
         ("GET", "/homes"    )   -> getHomes currentUser
         ("POST", "/homes"   )   -> postHome creds currentUser (queryString request) (fst reqBodyParsed)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
@@ -123,6 +124,11 @@ success200 = responseLBS HTTP.status200 [("Content-Type", "text/plain")]
 
 success200Json :: ToJSON a => a -> Response
 success200Json body = responseLBS HTTP.status200
+                                  [("Content-Type", "application/json")]
+                                  (encode body)
+
+success201Json :: ToJSON a => a -> Response
+success201Json body = responseLBS HTTP.status201
                                   [("Content-Type", "application/json")]
                                   (encode body)
 
@@ -192,30 +198,40 @@ getHomes (Just currentUser) = do
     homes <- getUserHomes (userId currentUser)
     pure $ success200Json homes
 
+-- POST /sinks
+postSink :: AppCreds -> Maybe User -> HTTP.Query -> [Param] -> IO Response
+postSink _     Nothing            _           _      = pure unauthenticated
+postSink creds (Just currentUser) queryParams params = do
+    parsedSink <- influxSinkFrom currentUser params
+
+    case parsedSink of
+        (Right sink) -> do
+            print "Storing sink..."
+            storeSinkRes <- storeInfluxSink sink
+
+            case storeSinkRes of
+                Just storedSink -> return $ success201Json storedSink
+                _               -> return $ err500 "Couldn't complete operation"
+
+        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
+
 -- POST /homes
 postHome :: AppCreds -> Maybe User -> HTTP.Query -> [Param] -> IO Response
 postHome _     Nothing            _           _      = pure unauthenticated
 postHome creds (Just currentUser) queryParams params = do
-    home       <- homeFrom currentUser params
-    parsedSink <- influxSinkFrom currentUser params
+    home <- homeFrom currentUser params
+
     let redirectInBodyQParam = getParamValue "redirectUrlInBody" queryParams
     let redirectInBody = case redirectInBodyQParam of
             (Right "true") -> True
             _              -> False
 
-    case parsedSink of
-        (Right sink) -> do
-            print "Storing home..."
-            storeHomeRes <- storeHome home
-            print "Storing sink..."
-            storeSinkRes <- storeInfluxSink sink
+    print "Storing home..."
+    storeHomeRes <- storeHome home
 
-            case (storeHomeRes, storeSinkRes) of
-                (Just storedHome, Just _) ->
-                    oauthRedirect creds storedHome redirectInBody
-                _ -> return $ err500 "Couldn't complete operation"
-
-        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
+    case storeHomeRes of
+        Just storedHome -> oauthRedirect creds storedHome redirectInBody
+        _               -> return $ err500 "Couldn't complete operation"
 
 oauthRedirect :: AppCreds -> Home -> Bool -> IO Response
 oauthRedirect creds home redirectInBody = case oauthState home of

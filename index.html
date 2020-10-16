@@ -44,7 +44,7 @@
             getAndRender(targetDiv, "/sinks");
         }
 
-        function addHome(form) {
+        function addHome() {
             const XHR = new XMLHttpRequest();
 
             XHR.addEventListener("load", function (event) {
@@ -62,16 +62,44 @@
             XHR.responseType = "json";
             XHR.open("POST", "/homes?redirectUrlInBody=true");
             addAuth(XHR);
+            XHR.send();
+        }
+
+        function addSink(form) {
+            const XHR = new XMLHttpRequest();
+
+            XHR.addEventListener("load", function (event) {
+                if (XHR.status === 201) {
+                    loadSinks();
+                } else {
+                    console.error(`Unexpected status code ${XHR.status}`);
+                }
+            });
+
+            XHR.addEventListener("error", function (err) {
+                console.log(err);
+            });
+
+            XHR.responseType = "json";
+            XHR.open("POST", "/sinks");
+            addAuth(XHR);
             XHR.send(new FormData(form));
         }
 
         window.addEventListener("load", function () {
-            const form = document.getElementById("homeForm");
+            const form = document.getElementById("sinkForm");
             form.addEventListener("submit", function (event) {
                 event.preventDefault();
 
-                addHome(form);
+                addSink(form);
             });
+
+            document
+                .getElementById("addHomeButton")
+                .addEventListener("click", function (event) {
+                    event.preventDefault();
+                    addHome();
+                });
 
             loadHomes();
             loadSinks();
@@ -81,7 +109,8 @@
 
 <body>
     <h1>Welcome to my data page</h1>
-    <form id="homeForm">
+    <h2>Add Influx target</h2>
+    <form id="sinkForm">
         <label for="influxHost">Influx host:</label>
         <input type="text" name="influxHost" id="influxHost" /><br />
         <label for="influxPort">Influx port:</label>
@@ -92,8 +121,11 @@
         <input type="text" name="influxUsername" id="influxUsername" value="" /><br />
         <label for="influxPassword">Influx password:</label>
         <input type="password" name="influxPassword" id="influxPassword" /><br />
-        <input type="submit" value="Create home" />
+        <input type="submit" value="Create sink" />
     </form>
+
+    <h2>Add Home</h2>
+    <input type="button" value="Add Hue home" id="addHomeButton" />
 
     <h2>Homes</h2>
     <div id="homeList"></div>
