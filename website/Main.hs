@@ -62,7 +62,7 @@ app creds keys request respond = do
         ("POST", "/sinks"   )   -> postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"    )   -> getHomes currentUser
         ("POST", "/homes"   )   -> postHome creds currentUser (queryString request)
-        ("GET" , "/callback")   -> oauthCallback creds (queryString request)
+        ("GET" , "/callback")   -> hueOauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
 
     respond response
@@ -230,11 +230,11 @@ postHome creds (Just currentUser) queryParams = do
     storeHomeRes <- storeHome home
 
     case storeHomeRes of
-        Just storedHome -> oauthRedirect creds storedHome redirectInBody
+        Just storedHome -> hueOauthRedirect creds storedHome redirectInBody
         _               -> return $ err500 "Couldn't complete operation"
 
-oauthRedirect :: AppCreds -> Home -> Bool -> IO Response
-oauthRedirect creds home redirectInBody = case oauthState home of
+hueOauthRedirect :: AppCreds -> Home -> Bool -> IO Response
+hueOauthRedirect creds home redirectInBody = case oauthState home of
     Just state -> do
         let redirectTarget = buildHueOauthRedirect creds state
         if redirectInBody
@@ -244,12 +244,11 @@ oauthRedirect creds home redirectInBody = case oauthState home of
         return
             (err500 "Internal Server Error - did not find expected OAuth state")
 
-
 -- GET /callback
-oauthCallback :: AppCreds -> HTTP.Query -> IO Response
-oauthCallback creds queryParams = case res of
+hueOauthCallback :: AppCreds -> HTTP.Query -> IO Response
+hueOauthCallback creds queryParams = case res of
     Right (stateVal, codeVal) ->
-        callbackResponse creds stateVal (U.fromString codeVal)
+        hueCallbackResponse creds stateVal (U.fromString codeVal)
     Left err -> return (badRequest err)
 
   where
@@ -259,17 +258,17 @@ oauthCallback creds queryParams = case res of
 
 
 -- Generates a callback response for the given state and code param
-callbackResponse :: AppCreds -> String -> B.ByteString -> IO Response
-callbackResponse creds state code = do
+hueCallbackResponse :: AppCreds -> String -> B.ByteString -> IO Response
+hueCallbackResponse creds state code = do
     maybeHome <- getOauthPendingHome state
 
     case maybeHome of
-        (Just h) -> finishOAuthFlow creds code h
+        (Just h) -> finishHueOAuthFlow creds code h
         _        -> return notFound
 
-finishOAuthFlow :: AppCreds -> B.ByteString -> Home -> IO Response
-finishOAuthFlow creds code home = do
-    tokens <- getOAuthTokens creds code
+finishHueOAuthFlow :: AppCreds -> B.ByteString -> Home -> IO Response
+finishHueOAuthFlow creds code home = do
+    tokens <- getHueOAuthTokens creds code
     case tokens of
         (Right resp) -> do
             currentTime <- getCurrentTime
@@ -293,9 +292,9 @@ finishOAuthFlow creds code home = do
         (Left err) -> return $ err500 ("Internal Server Error: " <> err)
 
 -- Finishes an OAuth Flow with the given access code,
-getOAuthTokens
+getHueOAuthTokens
     :: AppCreds -> B.ByteString -> IO (Either L.ByteString OAuthResponse)
-getOAuthTokens creds code =
+getHueOAuthTokens creds code =
     runReq defaultHttpConfig { httpConfigCheckResponse = \_ _ _ -> Nothing }
         $ do
               res <- req
@@ -314,7 +313,7 @@ getOAuthTokens creds code =
                                   "Missing WWW-Authenticate header in upstream response"
                               $ responseHeader res "WWW-Authenticate"
                       (realm, nonce) <- extractNonceAndRealm digestHeader
-                      pure $ finalOAuth creds realm nonce code
+                      pure $ finalHueOAuth creds realm nonce code
 
               case oauthData of
                   (Right ioResp) -> do
@@ -323,13 +322,13 @@ getOAuthTokens creds code =
                   (Left err) -> pure $ Left err
 
 
-finalOAuth
+finalHueOAuth
     :: AppCreds
     -> B.ByteString
     -> B.ByteString
     -> B.ByteString
     -> IO OAuthResponse
-finalOAuth creds realm nonce code = do
+finalHueOAuth creds realm nonce code = do
     let authHeader = buildDigestHeader creds nonce realm
 
     runReq defaultHttpConfig $ do
