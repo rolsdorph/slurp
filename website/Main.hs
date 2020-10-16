@@ -59,9 +59,9 @@ app creds keys request respond = do
         ("GET" , "/login"   )   -> pure loginLanding
         ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"    )   -> getSinks currentUser
-        ("POST", "/sinks"   )   -> postSink creds currentUser (queryString request) (fst reqBodyParsed)
+        ("POST", "/sinks"   )   -> postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"    )   -> getHomes currentUser
-        ("POST", "/homes"   )   -> postHome creds currentUser (queryString request) (fst reqBodyParsed)
+        ("POST", "/homes"   )   -> postHome creds currentUser (queryString request)
         ("GET" , "/callback")   -> oauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
 
@@ -199,9 +199,9 @@ getHomes (Just currentUser) = do
     pure $ success200Json homes
 
 -- POST /sinks
-postSink :: AppCreds -> Maybe User -> HTTP.Query -> [Param] -> IO Response
-postSink _     Nothing            _           _      = pure unauthenticated
-postSink creds (Just currentUser) queryParams params = do
+postSink :: AppCreds -> Maybe User -> [Param] -> IO Response
+postSink _     Nothing            _      = pure unauthenticated
+postSink creds (Just currentUser) params = do
     parsedSink <- influxSinkFrom currentUser params
 
     case parsedSink of
@@ -216,10 +216,10 @@ postSink creds (Just currentUser) queryParams params = do
         (Left e) -> return (badRequest $ "Malformed request body: " <> e)
 
 -- POST /homes
-postHome :: AppCreds -> Maybe User -> HTTP.Query -> [Param] -> IO Response
-postHome _     Nothing            _           _      = pure unauthenticated
-postHome creds (Just currentUser) queryParams params = do
-    home <- homeFrom currentUser params
+postHome :: AppCreds -> Maybe User -> HTTP.Query -> IO Response
+postHome _     Nothing            _           = pure unauthenticated
+postHome creds (Just currentUser) queryParams = do
+    home <- homeFrom currentUser
 
     let redirectInBodyQParam = getParamValue "redirectUrlInBody" queryParams
     let redirectInBody = case redirectInBodyQParam of
@@ -425,11 +425,20 @@ lookupParam paramName params =
         $ find (paramNamed paramName) params
 
 -- Constructs a new Home DTO with the given user as the owner
-homeFrom :: User -> [Param] -> IO Home
-homeFrom currentUser params = do
+homeFrom :: User -> IO Home
+homeFrom currentUser = do
     currentTime <- getCurrentTime
 
-    pure $ Home Nothing (Just $ userId currentUser) currentTime OAuthPending Nothing Nothing Nothing Nothing Nothing Nothing
+    pure $ Home Nothing
+                (Just $ userId currentUser)
+                currentTime
+                OAuthPending
+                Nothing
+                Nothing
+                Nothing
+                Nothing
+                Nothing
+                Nothing
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
 influxSinkFrom :: User -> [Param] -> IO (Either L.ByteString InfluxSink)
