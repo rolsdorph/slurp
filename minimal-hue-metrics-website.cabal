@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7687acee738901459ab6311913d156a6c2bfd954483c2e4541332d43e23651d9
+-- hash: b0d8df042498e9c0a3a473eead9030930695640bd1b01c6010247c6ce1b1cb87
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -118,6 +118,44 @@ executable hue-metrics-server-exe
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       website
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , aeson
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , case-insensitive
+    , convertible
+    , cryptohash-md5
+    , hspec
+    , http-types
+    , huemetrics
+    , jose
+    , lens
+    , minimal-hue-metrics-website
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , stringsearch
+    , text
+    , time
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+  default-language: Haskell2010
+
+executable notifier-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_minimal_hue_metrics_website
+  hs-source-dirs:
+      notifier
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
