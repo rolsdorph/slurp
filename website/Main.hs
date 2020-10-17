@@ -32,7 +32,6 @@ import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Lazy.Char8    as LB
 import qualified Data.ByteString.Char8         as C
-import qualified Data.ByteString.Search        as SS
 import qualified Data.ByteString.UTF8          as U
 import           Data.List
 import           Data.Fixed
@@ -66,9 +65,6 @@ app creds keys request respond = do
         (_     , _          )   -> pure notFound
 
     respond response
-
-extractBearerToken :: HTTP.Header -> L.ByteString
-extractBearerToken header = SS.replace "Bearer " ("" :: B.ByteString) (snd header)
 
 main :: IO ()
 main = do

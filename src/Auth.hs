@@ -7,7 +7,14 @@ import           UserDB
 import           Util
 import           Types
 
+import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
+import qualified Data.ByteString.Search        as SS
+import qualified Network.HTTP.Types            as HTTP
+import           Data.Aeson
+
+extractBearerToken :: HTTP.Header -> L.ByteString
+extractBearerToken header = SS.replace "Bearer " ("" :: B.ByteString) (snd header)
 
 -- Generates a token for the given user ID
 login :: String -> IO (Either L.ByteString String)
