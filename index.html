@@ -87,6 +87,15 @@
         }
 
         window.addEventListener("load", function () {
+            const ws = new WebSocket("wss://ws.rolsdorph.io", []);
+            ws.onopen = function (event) {
+                console.log("WebSocket connected, authenticating");
+                ws.send(localStorage.getItem('authToken'));
+            };
+            ws.onmessage = function (event) {
+                console.log(`Received ${event.data} over the WebSocket`);
+            };
+
             const form = document.getElementById("sinkForm");
             form.addEventListener("submit", function (event) {
                 event.preventDefault();

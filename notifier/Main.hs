@@ -7,9 +7,10 @@ import           Control.Monad
 import           Control.Concurrent.Async
 import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.MVar
-import           Data.ByteString               as B
+import qualified Data.ByteString               as B
+import qualified Data.ByteString.Lazy          as L
 import qualified Data.CaseInsensitive          as CI
-import qualified Data.List                     as L
+import qualified Data.List                     as List
 import           Data.UUID.V4
 import           Network.WebSockets
 
@@ -37,7 +38,7 @@ addConnection newConnection connections = newConnection : connections
 
 -- Stops tracking a connection
 removeConnection :: UserConnection -> UserConnections -> UserConnections
-removeConnection userConn = L.filter (\c -> connId c /= removeId)
+removeConnection userConn = List.filter (\c -> connId c /= removeId)
     where removeId = connId userConn
 
 main :: IO ()
@@ -57,6 +58,10 @@ forwardEvents connectionsVar = forever $ do
     connections <- readMVar connectionsVar
     print ("Current connections: " ++ show connections)
     threadDelay (1000 * 1000) -- 1s
+
+sendToEveryone :: UserConnections -> L.ByteString -> IO ()
+sendToEveryone connections msg =
+    forM_ connections (\c -> sendDataMessage (connection c) (Text msg Nothing))
 
 app :: MVar UserConnections -> ServerApp
 app connectionVar pendingConnection = do
