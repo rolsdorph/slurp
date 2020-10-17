@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b0d8df042498e9c0a3a473eead9030930695640bd1b01c6010247c6ce1b1cb87
+-- hash: 128fe134a70857b59f2294889a3b3473541081b641aecc8da0375006c28d39fb
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -48,6 +48,7 @@ library
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -72,6 +73,7 @@ library
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010
 
 executable hue-metrics-collector-exe
@@ -85,6 +87,7 @@ executable hue-metrics-collector-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -110,6 +113,7 @@ executable hue-metrics-collector-exe
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010
 
 executable hue-metrics-server-exe
@@ -123,6 +127,7 @@ executable hue-metrics-server-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -148,6 +153,7 @@ executable hue-metrics-server-exe
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010
 
 executable notifier-exe
@@ -161,6 +167,7 @@ executable notifier-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -186,6 +193,7 @@ executable notifier-exe
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010
 
 test-suite google-login-test
@@ -200,6 +208,7 @@ test-suite google-login-test
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -225,6 +234,7 @@ test-suite google-login-test
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010
 
 test-suite minimal-hue-metrics-website-test
@@ -239,6 +249,7 @@ test-suite minimal-hue-metrics-website-test
       HDBC
     , HDBC-sqlite3
     , aeson
+    , async
     , base >=4.7 && <5
     , base16-bytestring
     , bytestring
@@ -264,4 +275,5 @@ test-suite minimal-hue-metrics-website-test
     , wai
     , wai-extra
     , warp
+    , websockets
   default-language: Haskell2010

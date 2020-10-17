@@ -47,6 +47,8 @@ dependencies:
 - hspec
 - case-insensitive
 - stringsearch
+- websockets
+- async
 
 library:
   source-dirs: src
