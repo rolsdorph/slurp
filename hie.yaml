@@ -6,5 +6,7 @@ cradle:
       component: "minimal-hue-metrics-website:exe:hue-metrics-server-exe"
     - path: "./collector"
       component: "minimal-hue-metrics-website:exe:hue-metrics-collector-exe"
+    - path: "./notifier"
+      component: "minimal-hue-metrics-website:exe:notifier-exe"
     - path: "./test"
       component: "minimal-hue-metrics-website:test:minimal-hue-metrics-website-test"
