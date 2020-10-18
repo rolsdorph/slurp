@@ -12,12 +12,15 @@
 
         // Performs an authenticated GET to the given URL and renders a
         // stringification of each returned element in the target div
-        // (expects the GET to return a JSON list)
-        function getAndRender(targetDiv, url) {
+        // (expects the GET to return a JSON list).
+
+        // The elements are rendered with id {prefix}+{id}, where id
+        // is the "id" field in the returned DTO
+        function getAndRender(targetDiv, idPrefix, url) {
             const XHR = new XMLHttpRequest();
 
             XHR.addEventListener("load", function (event) {
-                renderJsonList(targetDiv, XHR.response);
+                renderJsonList(targetDiv, idPrefix, XHR.response);
             });
 
             XHR.responseType = "json";
@@ -26,9 +29,10 @@
             XHR.send();
         }
 
-        function renderJsonList(target, elements) {
+        function renderJsonList(target, idPrefix, elements) {
             for (const element of elements) {
-                const domNode = document.createElement("div")
+                const domNode = document.createElement("div");
+                domNode.id = idPrefix + element.id;
                 domNode.innerText = JSON.stringify(element);
                 target.appendChild(domNode);
             }
@@ -36,12 +40,12 @@
 
         function loadHomes() {
             const targetDiv = document.getElementById("homeList");
-            getAndRender(targetDiv, "/homes");
+            getAndRender(targetDiv, "home-", "/homes");
         }
 
         function loadSinks() {
             const targetDiv = document.getElementById("influxList");
-            getAndRender(targetDiv, "/sinks");
+            getAndRender(targetDiv, "sink-", "/sinks");
         }
 
         function addHome() {
@@ -63,6 +67,12 @@
             XHR.open("POST", "/homes?redirectUrlInBody=true");
             addAuth(XHR);
             XHR.send();
+        }
+
+        function flash(elem, color) {
+            const oldColor = elem.style.backgroundColor;
+            elem.style.backgroundColor = color;
+            setTimeout(() => elem.style.backgroundColor = oldColor, 500);
         }
 
         function addSink(form) {
@@ -94,6 +104,16 @@
             };
             ws.onmessage = function (event) {
                 console.log(`Received ${event.data} over the WebSocket`);
+
+                const data = JSON.parse(event.data);
+                const homeId = data['homeId'];
+                const influxId = data['influxId'];
+
+                const homeElem = document.getElementById(`home-${homeId}`);
+                const influxElem = document.getElementById(`sink-${influxId}`);
+
+                flash(homeElem, "blue");
+                flash(influxElem, "green");
             };
 
             const form = document.getElementById("sinkForm");
