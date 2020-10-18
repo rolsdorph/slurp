@@ -86,7 +86,7 @@ buildNotificationPayload home sink = do
     pure $ object
         [ "time" .= curTime
         , "homeId" .= uuid home
-        , "influxHost" .= influxHost sink
+        , "influxId" .= influxUuid sink
         ]
 
 -- Publishes data from the given home to each of the given sinks
