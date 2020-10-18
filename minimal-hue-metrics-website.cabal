@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 128fe134a70857b59f2294889a3b3473541081b641aecc8da0375006c28d39fb
+-- hash: 0dc9942ac788716b9cb2f64ea84b23ce1770aa2ae4e0f55b24fe06891f41fb97
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -48,6 +48,7 @@ library
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring
@@ -87,6 +88,7 @@ executable hue-metrics-collector-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring
@@ -127,6 +129,7 @@ executable hue-metrics-server-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring
@@ -159,6 +162,7 @@ executable hue-metrics-server-exe
 executable notifier-exe
   main-is: Main.hs
   other-modules:
+      UserMessage
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       notifier
@@ -167,6 +171,7 @@ executable notifier-exe
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring
@@ -208,6 +213,7 @@ test-suite google-login-test
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring
@@ -249,6 +255,7 @@ test-suite minimal-hue-metrics-website-test
       HDBC
     , HDBC-sqlite3
     , aeson
+    , amqp
     , async
     , base >=4.7 && <5
     , base16-bytestring

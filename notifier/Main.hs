@@ -7,13 +7,16 @@ import           Control.Monad
 import           Control.Concurrent.Async
 import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.MVar
+import           Data.Aeson
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.CaseInsensitive          as CI
 import qualified Data.List                     as List
 import           Data.UUID.V4
+import qualified Network.AMQP                  as Q
 import           Network.WebSockets
 
+import           UserMessage
 import           Auth
 import           Types
 
@@ -48,20 +51,40 @@ main = do
     connections <- newMVar emptyConnectionList
 
     -- Listen for events to forward
-    async $ forwardEvents connections
+    forwardEvents connections
 
     -- Listen for WebSocket events
     runServer "127.0.0.1" 8090 (app connections)
 
-forwardEvents :: MVar UserConnections -> IO ()
-forwardEvents connectionsVar = forever $ do
-    connections <- readMVar connectionsVar
-    print ("Current connections: " ++ show connections)
-    threadDelay (1000 * 1000) -- 1s
+-- TODO: Read from env
+queueName = "dataMoveEvents"
 
-sendToEveryone :: UserConnections -> L.ByteString -> IO ()
-sendToEveryone connections msg =
-    forM_ connections (\c -> sendDataMessage (connection c) (Text msg Nothing))
+forwardEvents :: MVar UserConnections -> IO ()
+forwardEvents connectionsVar = do
+    conn <- Q.openConnection "127.0.0.1" "/" "guest" "guest" -- TODO: From env
+    chan <- Q.openChannel conn
+    Q.declareQueue chan $ Q.newQueue { Q.queueName = queueName }
+
+    Q.consumeMsgs chan queueName Q.NoAck $ \(msg, envelope) -> do
+        let parsedMsg = eitherDecode $ Q.msgBody msg
+        case parsedMsg of
+            (Right (Message targetUserId payload)) -> do
+                connections <- readMVar connectionsVar
+
+                print $ "Notifying " ++ targetUserId
+
+                sendToUserId targetUserId connections (encode payload)
+            (Left err) -> print $ "Ignoring malformed message " ++ err
+
+    return ()
+
+sendToUserId :: String -> UserConnections -> L.ByteString -> IO ()
+sendToUserId targetUserId connections message = forM_
+    (userIdConnections targetUserId connections)
+    (\c -> sendDataMessage (connection c) (Text message Nothing))
+
+userIdConnections :: String -> UserConnections -> UserConnections
+userIdConnections target = List.filter (\u -> userId (user u) == target)
 
 app :: MVar UserConnections -> ServerApp
 app connectionVar pendingConnection = do
@@ -76,15 +99,12 @@ app connectionVar pendingConnection = do
         (Right user) -> do
             print "Authentication successful :)"
 
-            -- Generate a new connection ID
-            connId      <- show <$> nextRandom
-
-
+            connId <- show <$> nextRandom
             let userConn = UserConnection connId user connection
 
             -- Start tracking the connection
-            modifyMVar_ connectionVar $ \connections ->
-                pure $ addConnection userConn connections
+            modifyMVar_ connectionVar
+                $ \connections -> pure $ addConnection userConn connections
 
             -- Listen until disconnect, then remove the connection
             removeOnDisconnect connectionVar userConn
@@ -109,7 +129,7 @@ attemptAuth (Text token _) = verifyToken token
 removeOnDisconnect :: MVar UserConnections -> UserConnection -> IO ()
 removeOnDisconnect connectionsVar userConn =
     finally (waitForDisconnect (connection userConn)) $ do
-        print "Disconnected"
+        print "User disconnected"
 
         modifyMVar_ connectionsVar $ \currentConnections ->
             pure $ removeConnection userConn currentConnections

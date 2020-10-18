@@ -49,6 +49,7 @@ dependencies:
 - stringsearch
 - websockets
 - async
+- amqp
 
 library:
   source-dirs: src
