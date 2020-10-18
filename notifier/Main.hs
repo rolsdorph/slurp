@@ -16,7 +16,6 @@ import           Data.UUID.V4
 import qualified Network.AMQP                  as Q
 import           Network.WebSockets
 
-import           UserMessage
 import           Auth
 import           Types
 
@@ -68,7 +67,7 @@ forwardEvents connectionsVar = do
     Q.consumeMsgs chan queueName Q.NoAck $ \(msg, envelope) -> do
         let parsedMsg = eitherDecode $ Q.msgBody msg
         case parsedMsg of
-            (Right (Message targetUserId payload)) -> do
+            (Right (MessageToUser targetUserId payload)) -> do
                 connections <- readMVar connectionsVar
 
                 print $ "Notifying " ++ targetUserId

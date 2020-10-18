@@ -102,3 +102,16 @@ instance ToJSON InfluxSink where
             , "influxTLS" .= influxTLS
             , "createdAt" .= createdAt
             ]
+
+data MessageToUser = MessageToUser {
+    targetUserId :: String,
+    payload :: Value
+}
+
+instance ToJSON MessageToUser where
+    toJSON message =
+        object ["targetUserId" .= targetUserId message, "payload" .= payload message]
+
+instance FromJSON MessageToUser where
+    parseJSON = withObject "Message"
+        $ \m -> MessageToUser <$> m .: "targetUserId" <*> m .: "payload"
