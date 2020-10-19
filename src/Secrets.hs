@@ -31,3 +31,19 @@ readCreds = do
         <*> (T.pack <$> googleClientId)
         <*> spotifyClientId
         <*> spotifyRedirectUri
+
+readUserNotificationQueueConfig :: IO (Maybe QueueConfig)
+readUserNotificationQueueConfig = do
+    hostname  <- lookupEnv "rmqHost"
+    vhost     <- lookupEnv "rmqVhost"
+    username  <- lookupEnv "rmqUsername"
+    password  <- lookupEnv "rmqPassword"
+    queueName <- lookupEnv "userNotificationQueueName"
+
+    pure
+        $   QueueConfig
+        <$> hostname
+        <*> (T.pack <$> vhost)
+        <*> (T.pack <$> username)
+        <*> (T.pack <$> password)
+        <*> (T.pack <$> queueName)

@@ -19,31 +19,39 @@ import           Data.Time.Clock
 import qualified Network.AMQP                  as Q
 import           Text.Printf
 
+import           Secrets
 import           Types
 
 hueBridgeApi = "api.meethue.com"
 
-queueName = "dataMoveEvents" -- TODO: From env
-
 main :: IO ()
 main = do
-    notificationVar <- newEmptyMVar
+    maybeQueueConfig <- readUserNotificationQueueConfig
 
-    queueConnection <- Q.openConnection "127.0.0.1" "/" "guest" "guest" -- TODO: From env
-    queueChannel    <- Q.openChannel queueConnection
+    case maybeQueueConfig of
+        (Just queueConfig) -> do
+            notificationVar <- newEmptyMVar
 
-    publishJob      <- async $ publishAll notificationVar
-    notificationJob <- async $ publishNotifications notificationVar queueChannel
+            queueConnection <- Q.openConnection (hostname queueConfig)
+                                                (vhost queueConfig)
+                                                (username queueConfig)
+                                                (password queueConfig)
+            queueChannel    <- Q.openChannel queueConnection
 
-    wait publishJob
+            publishJob      <- async $ publishAll notificationVar
+            notificationJob <- async $ publishNotifications
+                notificationVar
+                queueChannel
+                (queueName queueConfig)
 
-    putStrLn "Done"
+            wait publishJob
+        _ -> putStrLn "User notification queue config missing, not starting"
 
 -- Waits for messages and pushes them onto the given channel
-publishNotifications :: MVar MessageToUser -> Q.Channel -> IO ()
-publishNotifications messageVar chan = forever $ do
+publishNotifications :: MVar MessageToUser -> Q.Channel -> T.Text -> IO ()
+publishNotifications messageVar chan routingKey = forever $ do
     msg <- takeMVar messageVar
-    Q.publishMsg chan "" queueName $ Q.newMsg { Q.msgBody = encode msg } -- "" = default exchange
+    Q.publishMsg chan "" routingKey $ Q.newMsg { Q.msgBody = encode msg } -- "" = default exchange
 
 -- Publishes data from all sources to all sinks, for all users
 publishAll :: MVar MessageToUser -> IO ()

@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 vimux-run-command:
-	stack run notifier-exe
+	source ../loadQueueConfig.sh && stack run notifier-exe
 vimux-build-command:
 	stack build
 vimux-test-command:

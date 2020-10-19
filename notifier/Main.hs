@@ -17,6 +17,7 @@ import qualified Network.AMQP                  as Q
 import           Network.WebSockets
 
 import           Auth
+import           Secrets
 import           Types
 
 type ConnId = String
@@ -45,26 +46,30 @@ removeConnection userConn = List.filter (\c -> connId c /= removeId)
 
 main :: IO ()
 main = do
-    print "127.0.0.1:8090"
+    maybeQueueConfig <- readUserNotificationQueueConfig
+    case maybeQueueConfig of
+        (Just queueConfig) -> do
+            print "127.0.0.1:8090"
 
-    connections <- newMVar emptyConnectionList
+            connections <- newMVar emptyConnectionList
 
-    -- Listen for events to forward
-    forwardEvents connections
+            -- Listen for events to forward
+            forwardEvents connections queueConfig
 
-    -- Listen for WebSocket events
-    runServer "127.0.0.1" 8090 (app connections)
+            -- Listen for WebSocket events
+            runServer "127.0.0.1" 8090 (app connections)
+        _ -> putStrLn "Notification queue config not found, refusing to start"
 
--- TODO: Read from env
-queueName = "dataMoveEvents"
-
-forwardEvents :: MVar UserConnections -> IO ()
-forwardEvents connectionsVar = do
-    conn <- Q.openConnection "127.0.0.1" "/" "guest" "guest" -- TODO: From env
+forwardEvents :: MVar UserConnections -> QueueConfig -> IO ()
+forwardEvents connectionsVar queueConfig = do
+    conn <- Q.openConnection (hostname queueConfig)
+                             (vhost queueConfig)
+                             (username queueConfig)
+                             (password queueConfig)
     chan <- Q.openChannel conn
-    Q.declareQueue chan $ Q.newQueue { Q.queueName = queueName }
+    Q.declareQueue chan $ Q.newQueue { Q.queueName = (queueName queueConfig) }
 
-    Q.consumeMsgs chan queueName Q.NoAck $ \(msg, envelope) -> do
+    Q.consumeMsgs chan (queueName queueConfig) Q.NoAck $ \(msg, envelope) -> do
         let parsedMsg = eitherDecode $ Q.msgBody msg
         case parsedMsg of
             (Right (MessageToUser targetUserId payload)) -> do

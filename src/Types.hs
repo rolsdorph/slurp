@@ -25,6 +25,14 @@ data AppCreds = AppCreds {
     spotifyRedirectUri :: String
 }
 
+data QueueConfig = QueueConfig {
+    hostname :: String,
+    vhost :: T.Text,
+    username :: T.Text,
+    password :: T.Text,
+    queueName :: T.Text
+}
+
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
                        deriving Show
 
