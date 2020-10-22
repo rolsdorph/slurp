@@ -40,6 +40,9 @@ import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
+import           System.Log.Logger
+
+loggerName = "Website"
 
 app :: AppCreds -> JWKSet -> Application
 app creds keys request respond = do
@@ -68,20 +71,21 @@ app creds keys request respond = do
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName $ setLevel DEBUG
+
     -- Create necessary tables if they don't exist
     UserDB.setupDb
     HomeDB.setupDb
     TokenDB.setupDb
     InfluxDB.setupDb
 
-     -- Flex some IO
-    putStrLn "http://localhost:8080/"
+    infoM loggerName "http://localhost:8080/"
 
     maybeCreds <- readCreds
     maybeKeys <- loadKeys "resources/certs.json"
     case (maybeCreds, maybeKeys) of
         (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app oauthCreds keys)
-        _                            -> putStrLn "Some secrets not loaded, not running"
+        _                            -> emergencyM loggerName "Some secrets not loaded, not running"
 
 -- Helpers for generating responses
 redirectResponse :: String -> Response
@@ -202,7 +206,7 @@ postSink creds (Just currentUser) params = do
 
     case parsedSink of
         (Right sink) -> do
-            print "Storing sink..."
+            infoM loggerName "Storing sink..."
             storeSinkRes <- storeInfluxSink sink
 
             case storeSinkRes of
@@ -222,7 +226,7 @@ postHome creds (Just currentUser) queryParams = do
             (Right "true") -> True
             _              -> False
 
-    print "Storing home..."
+    infoM loggerName "Storing home..."
     storeHomeRes <- storeHome home
 
     case storeHomeRes of
@@ -369,8 +373,7 @@ generateUsername creds home = do
                 jsonResponse
                 (header "Authorization" (U.fromString $ "Bearer " ++ token))
 
-            liftIO $ print "Got button response: "
-            liftIO $ print (responseBody buttonRes :: Value)
+            liftIO $ infoM loggerName ("Button response: " ++ show (responseBody buttonRes :: Value))
 
             usernameRes <- req
                 POST
@@ -379,15 +382,12 @@ generateUsername creds home = do
                 jsonResponse
                 (header "Authorization" (U.fromString $ "Bearer " ++ token))
 
-            liftIO $ print "Got username response: "
-            liftIO $ print (responseBody usernameRes)
-
             pure $ mapLeft (L.fromStrict . U.fromString) $ parseEither
                 extractUsername
                 (responseBody usernameRes)
 
         _ -> do
-            liftIO $ print "No token found"
+            liftIO $ errorM loggerName "No token found"
             pure $ Left "No OAuth token found for home"
 
 extractUsername :: Value -> Parser String

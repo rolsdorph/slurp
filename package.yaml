@@ -50,6 +50,7 @@ dependencies:
 - websockets
 - async
 - amqp
+- hslogger
 
 library:
   source-dirs: src

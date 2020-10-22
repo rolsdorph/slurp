@@ -18,14 +18,18 @@ import qualified Data.Text                     as T
 import           Data.Time.Clock
 import qualified Network.AMQP                  as Q
 import           Text.Printf
+import           System.Log.Logger
 
 import           Secrets
 import           Types
 
 hueBridgeApi = "api.meethue.com"
+loggerName = "Collector"
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName $ setLevel DEBUG
+
     maybeQueueConfig <- readUserNotificationQueueConfig
 
     case maybeQueueConfig of
@@ -45,7 +49,7 @@ main = do
                 (queueName queueConfig)
 
             wait publishJob
-        _ -> putStrLn "User notification queue config missing, not starting"
+        _ -> emergencyM loggerName "User notification queue config missing, not starting"
 
 -- Waits for messages and pushes them onto the given channel
 publishNotifications :: MVar MessageToUser -> Q.Channel -> T.Text -> IO ()
@@ -56,12 +60,12 @@ publishNotifications messageVar chan routingKey = forever $ do
 -- Publishes data from all sources to all sinks, for all users
 publishAll :: MVar MessageToUser -> IO ()
 publishAll notificationVar = forever $ do
-    putStrLn "Fetching users..."
+    infoM loggerName "Fetching users..."
     users <- getAllUsers
 
     forM_ users $ publishForUser notificationVar
 
-    putStrLn "All done, soon looping again!"
+    infoM loggerName "All done, soon looping again!"
 
     threadDelay (1000 * 1000 * 10) -- 10s
 
@@ -70,18 +74,18 @@ type UserNotifyer = Home -> InfluxSink -> IO ()
 -- Publishes data from all user homes to all user sinks
 publishForUser :: MVar MessageToUser -> User -> IO ()
 publishForUser notificationVar user = do
-    putStrLn "Fetching verified user homes..."
+    infoM loggerName "Fetching verified user homes..."
     homes <- getUserHomes (userId user)
 
-    putStrLn "Fetching all user sinks..."
+    infoM loggerName "Fetching all user sinks..."
     sinks <- getUserInfluxSinks (userId user)
 
     let userNotifyer = notify notificationVar user
 
-    putStrLn "Collecting metrics..."
+    infoM loggerName "Collecting metrics..."
     forM_ homes (collectHome userNotifyer sinks)
 
-    putStrLn "Done!"
+    infoM loggerName "Done!"
 
 notify :: MVar MessageToUser -> User -> Home -> InfluxSink -> IO ()
 notify notificationVar user home sink = do
@@ -106,7 +110,7 @@ collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
 -- Collects stats from a home and publishes them to the given sink
 collect :: Home -> InfluxSink -> IO ()
 collect home sink = do
-    printf "About to publish to %s:%d" (influxHost sink) (influxPort sink)
+    infoM loggerName $ printf "About to publish to %s:%d" (influxHost sink) (influxPort sink)
 
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
@@ -119,4 +123,4 @@ collect home sink = do
             hueBridgeApi
             (Just t)
             u
-        _ -> print "Token or username missing, can't update home"
+        _ -> warningM loggerName "Token or username missing, can't update home"

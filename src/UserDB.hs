@@ -15,7 +15,9 @@ import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Char8         as C
+import           System.Log.Logger
 
+userDbLoggerName = "UserDB" -- TODO: Just don't export this variable
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 userTableName = "users" :: String
 
@@ -69,14 +71,14 @@ fetchOrCreateGoogleUser googleId = do
 
     case firstHit of
         (Just row) -> do
-           print $ "Found user with Google UUID " <> googleId
+           infoM userDbLoggerName $ "Found user with Google UUID " ++ show googleId
            return $ parseUserRow row
         _          -> createGoogleUser googleId
 
 -- Creates a new user with the given Google UUID
 createGoogleUser :: L.ByteString -> IO (Maybe User)
 createGoogleUser googleId = do
-    print $ "Creating user with Google UUID " <> googleId
+    infoM userDbLoggerName $ "Creating user with Google UUID " ++ show googleId
 
     uuid <- show <$> nextRandom
     now  <- getCurrentTime

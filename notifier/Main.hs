@@ -15,10 +15,13 @@ import qualified Data.List                     as List
 import           Data.UUID.V4
 import qualified Network.AMQP                  as Q
 import           Network.WebSockets
+import           System.Log.Logger
 
 import           Auth
 import           Secrets
 import           Types
+
+loggerName = "Notifier"
 
 type ConnId = String
 data UserConnection = UserConnection {
@@ -46,10 +49,12 @@ removeConnection userConn = List.filter (\c -> connId c /= removeId)
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName $ setLevel DEBUG
+
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
         (Just queueConfig) -> do
-            print "127.0.0.1:8090"
+            infoM loggerName "Listening at 127.0.0.1:8090"
 
             connections <- newMVar emptyConnectionList
 
@@ -58,7 +63,7 @@ main = do
 
             -- Listen for WebSocket events
             runServer "127.0.0.1" 8090 (app connections)
-        _ -> putStrLn "Notification queue config not found, refusing to start"
+        _ -> emergencyM loggerName "Notification queue config not found, refusing to start"
 
 forwardEvents :: MVar UserConnections -> QueueConfig -> IO ()
 forwardEvents connectionsVar queueConfig = do
@@ -75,10 +80,10 @@ forwardEvents connectionsVar queueConfig = do
             (Right (MessageToUser targetUserId payload)) -> do
                 connections <- readMVar connectionsVar
 
-                print $ "Notifying " ++ targetUserId
+                infoM loggerName $ "Notifying " ++ targetUserId
 
                 sendToUserId targetUserId connections (encode payload)
-            (Left err) -> print $ "Ignoring malformed message " ++ err
+            (Left err) -> warningM loggerName $ "Ignoring malformed message " ++ err
 
     return ()
 
@@ -99,9 +104,9 @@ app connectionVar pendingConnection = do
     authResult <- waitForAuth 3 connection
 
     case authResult of
-        (Left  err ) -> print $ "Authentication unsuccessful: " ++ err
+        (Left  err ) -> infoM loggerName $ "Authentication unsuccessful: " ++ err
         (Right user) -> do
-            print "Authentication successful :)"
+            infoM loggerName "Authentication successful :)"
 
             connId <- show <$> nextRandom
             let userConn = UserConnection connId user connection
@@ -133,7 +138,7 @@ attemptAuth (Text token _) = verifyToken token
 removeOnDisconnect :: MVar UserConnections -> UserConnection -> IO ()
 removeOnDisconnect connectionsVar userConn =
     finally (waitForDisconnect (connection userConn)) $ do
-        print "User disconnected"
+        infoM loggerName "User disconnected"
 
         modifyMVar_ connectionsVar $ \currentConnections ->
             pure $ removeConnection userConn currentConnections

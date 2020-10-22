@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 75ebf23cfd677b5a9654bac35c49a9b6b2cef674a02d1dbee29a440aeebc198b
+-- hash: c61d045c558e9b653ae4b2beac2924e28443e2fab1dd0cdccbd1083ee3d87183
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -56,6 +56,7 @@ library
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
@@ -96,6 +97,7 @@ executable hue-metrics-collector-exe
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
@@ -137,6 +139,7 @@ executable hue-metrics-server-exe
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
@@ -178,6 +181,7 @@ executable notifier-exe
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
@@ -220,6 +224,7 @@ test-suite google-login-test
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
@@ -262,6 +267,7 @@ test-suite minimal-hue-metrics-website-test
     , case-insensitive
     , convertible
     , cryptohash-md5
+    , hslogger
     , hspec
     , http-types
     , huemetrics
