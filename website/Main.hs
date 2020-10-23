@@ -40,7 +40,9 @@ import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Network.HTTP.Req
+import           GHC.IO.Handle.FD
 import           System.Log.Logger
+import           System.Log.Handler.Simple
 
 loggerName = "Website"
 
@@ -71,7 +73,10 @@ app creds keys request respond = do
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
+    stdOutHandler <- verboseStreamHandler stdout DEBUG
+    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
     -- Create necessary tables if they don't exist
     UserDB.setupDb

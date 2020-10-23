@@ -15,7 +15,9 @@ import qualified Data.List                     as List
 import           Data.UUID.V4
 import qualified Network.AMQP                  as Q
 import           Network.WebSockets
+import           GHC.IO.Handle.FD
 import           System.Log.Logger
+import           System.Log.Handler.Simple
 
 import           Auth
 import           Secrets
@@ -49,7 +51,11 @@ removeConnection userConn = List.filter (\c -> connId c /= removeId)
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
+    stdOutHandler <- verboseStreamHandler stdout DEBUG
+    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+
 
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of

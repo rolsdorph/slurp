@@ -18,7 +18,9 @@ import qualified Data.Text                     as T
 import           Data.Time.Clock
 import qualified Network.AMQP                  as Q
 import           Text.Printf
+import           GHC.IO.Handle.FD
 import           System.Log.Logger
+import           System.Log.Handler.Simple
 
 import           Secrets
 import           Types
@@ -28,7 +30,10 @@ loggerName = "Collector"
 
 main :: IO ()
 main = do
+    updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
+    stdOutHandler <- verboseStreamHandler stdout DEBUG
+    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
     maybeQueueConfig <- readUserNotificationQueueConfig
 
