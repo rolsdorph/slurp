@@ -4,4 +4,4 @@
 *.swp
 loadCreds.sh
 loadQueueConfig.sh
-resources/certs.json
+website/resources/certs.json

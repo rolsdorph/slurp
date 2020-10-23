@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
-vimux-run-command:
-	./fetchCerts.sh && source loadCreds.sh && stack run hue-metrics-server-exe
+deploy-all:
+	stack build && make -C website & make -C notifier & make -C collector
 vimux-build-command:
 	stack build
 vimux-test-command:
