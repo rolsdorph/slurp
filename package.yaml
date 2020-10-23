@@ -40,7 +40,6 @@ dependencies:
 - base16-bytestring
 - aeson
 - vector
-- huemetrics
 - jose
 - lens
 - mtl
@@ -51,6 +50,11 @@ dependencies:
 - async
 - amqp
 - hslogger
+- http-client
+- http-client-tls
+- unordered-containers
+- containers
+- influxdb
 
 library:
   source-dirs: src

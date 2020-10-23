@@ -22,6 +22,7 @@ import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
+import           Collector
 import           Secrets
 import           Types
 

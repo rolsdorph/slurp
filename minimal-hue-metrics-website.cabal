@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c61d045c558e9b653ae4b2beac2924e28443e2fab1dd0cdccbd1083ee3d87183
+-- hash: d3e73309b1aedff50b158aff9450e14d6627d19a5afe3f3e125e70c05a57e1be
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -54,12 +54,15 @@ library
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , mtl
@@ -69,6 +72,7 @@ library
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
@@ -81,6 +85,7 @@ library
 executable hue-metrics-collector-exe
   main-is: Main.hs
   other-modules:
+      Collector
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       collector
@@ -95,12 +100,15 @@ executable hue-metrics-collector-exe
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , minimal-hue-metrics-website
@@ -111,6 +119,7 @@ executable hue-metrics-collector-exe
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
@@ -137,12 +146,15 @@ executable hue-metrics-server-exe
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , minimal-hue-metrics-website
@@ -153,6 +165,7 @@ executable hue-metrics-server-exe
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
@@ -179,12 +192,15 @@ executable notifier-exe
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , minimal-hue-metrics-website
@@ -195,6 +211,7 @@ executable notifier-exe
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
@@ -222,12 +239,15 @@ test-suite google-login-test
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , minimal-hue-metrics-website
@@ -238,6 +258,7 @@ test-suite google-login-test
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
@@ -265,12 +286,15 @@ test-suite minimal-hue-metrics-website-test
     , base16-bytestring
     , bytestring
     , case-insensitive
+    , containers
     , convertible
     , cryptohash-md5
     , hslogger
     , hspec
+    , http-client
+    , http-client-tls
     , http-types
-    , huemetrics
+    , influxdb
     , jose
     , lens
     , minimal-hue-metrics-website
@@ -281,6 +305,7 @@ test-suite minimal-hue-metrics-website-test
     , stringsearch
     , text
     , time
+    , unordered-containers
     , utf8-string
     , uuid
     , vector
