@@ -45,12 +45,10 @@ collectAndPublish host port username password bridgeHost bridgeToken bridgeUsern
   hSetBuffering stdout LineBuffering
 
   lights <- getLights bridgeHost bridgeUsername bridgeToken
-  print "Light data collected from bridge"
 
   let parsedLights = parseLights lights
   let metrics = map toLine parsedLights
   writeBatch (wp host port username password) metrics
-  print "Metrics published to Influx"
 
 parseLights :: Value -> [Light]
 parseLights value = do
