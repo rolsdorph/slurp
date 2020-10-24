@@ -2,10 +2,6 @@
 
 module Main where
 
-import           HomeDB
-import           InfluxDB
-import           UserDB
-import           Collector
 import           Control.Monad
 import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.Async
@@ -22,6 +18,9 @@ import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
+import           HomeDB
+import           InfluxDB
+import           UserDB
 import           Collector
 import           Secrets
 import           Types
@@ -75,8 +74,6 @@ publishAll notificationVar = forever $ do
 
     threadDelay (1000 * 1000 * 10) -- 10s
 
-type UserNotifyer = Home -> InfluxSink -> IO ()
-
 -- Publishes data from all user homes to all user sinks
 publishForUser :: MVar MessageToUser -> User -> IO ()
 publishForUser notificationVar user = do
@@ -93,22 +90,34 @@ publishForUser notificationVar user = do
 
     infoM loggerName "Done!"
 
-notify :: MVar MessageToUser -> User -> Home -> InfluxSink -> IO ()
-notify notificationVar user home sink = do
-    payload <- buildNotificationPayload home sink
+notify :: MVar MessageToUser -> User -> Value -> IO ()
+notify notificationVar user payload =
     putMVar notificationVar $ MessageToUser (userId user) payload
 
-buildNotificationPayload :: Home -> InfluxSink -> IO Value
-buildNotificationPayload home sink = do
+buildHomePayload :: Home -> IO Value
+buildHomePayload home = do
     curTime <- getCurrentTime
-    pure $ object
-        [ "time" .= curTime
-        , "homeId" .= uuid home
-        , "influxId" .= influxUuid sink
-        ]
+    pure
+        $ object
+              [ "type" .= ("SourceCollected" :: String)
+              , "time" .= curTime
+              , "homeId" .= uuid home
+              ]
+
+buildSinkPayload :: InfluxSink -> IO Value
+buildSinkPayload sink = do
+    curTime <- getCurrentTime
+    pure
+        $ object
+              [ "type" .= ("SinkFed" :: String)
+              , "time" .= curTime
+              , "influxId" .= influxUuid sink
+              ]
+
+type UserNotifier = Value -> IO ()
 
 -- Publishes data from the given home to each of the given sinks
-collectHome :: UserNotifyer -> [InfluxSink] -> Home -> IO ()
+collectHome :: UserNotifier -> [InfluxSink] -> Home -> IO ()
 collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
@@ -117,11 +126,17 @@ collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
             lights <- collect hueBridgeApi u (Just t)
             infoM loggerName "Collected light data"
 
+            homePayload <- buildHomePayload home
+            notifyUser homePayload
+
             publish (T.pack $ influxHost sink)
                     (influxPort sink)
                     (T.pack $ influxUsername sink)
                     (T.pack $ influxPassword sink)
                     lights
+
+            sinkPayload <- buildSinkPayload sink
+            notifyUser sinkPayload
+
             infoM loggerName "Published light data"
         _ -> warningM loggerName "Token or username missing, can't update home"
-    notifyUser home sink

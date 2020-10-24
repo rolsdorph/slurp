@@ -106,14 +106,18 @@
                 console.log(`Received ${event.data} over the WebSocket`);
 
                 const data = JSON.parse(event.data);
-                const homeId = data['homeId'];
-                const influxId = data['influxId'];
 
-                const homeElem = document.getElementById(`home-${homeId}`);
-                const influxElem = document.getElementById(`sink-${influxId}`);
-
-                flash(homeElem, "blue");
-                flash(influxElem, "green");
+                if (data['type'] === 'SourceCollected') {
+                    const homeId = data['homeId'];
+                    const homeElem = document.getElementById(`home-${homeId}`);
+                    flash(homeElem, "blue");
+                } else if (data['type'] === 'SinkFed') {
+                    const influxId = data['influxId'];
+                    const influxElem = document.getElementById(`sink-${influxId}`);
+                    flash(influxElem, "green");
+                } else {
+                    console.error(`Unknown event type: ${data['type']}`);
+                }
             };
 
             const form = document.getElementById("sinkForm");
