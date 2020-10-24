@@ -90,6 +90,15 @@ data User = User { userId :: String,
                    googleUuid :: Maybe String }
     deriving Show
 
+class DataPoint a where
+    tags :: a -> [(String, DataPointValue)]
+    fields :: a -> [(String, DataPointValue)]
+
+data DataPointValue = IntValue Int
+                    | DoubleValue Double
+                    | StringValue String
+                    | BoolValue Bool
+
 data Home = Home { uuid :: Maybe String
                  , ownerId :: Maybe String
                  , createdAt :: UTCTime
