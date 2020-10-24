@@ -110,23 +110,18 @@ buildNotificationPayload home sink = do
 -- Publishes data from the given home to each of the given sinks
 collectHome :: UserNotifyer -> [InfluxSink] -> Home -> IO ()
 collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
-    collect home sink
-    notifyUser home sink
-
--- Collects stats from a home and publishes them to the given sink
-collect :: Home -> InfluxSink -> IO ()
-collect home sink = do
-    infoM loggerName $ printf "About to publish to %s:%d" (influxHost sink) (influxPort sink)
-
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
     case (maybeToken, maybeUsername) of
-        (Just t, Just u) -> collectAndPublish
-            (T.pack $ influxHost sink)
-            (influxPort sink)
-            (T.pack $ influxUsername sink)
-            (T.pack $ influxPassword sink)
-            hueBridgeApi
-            (Just t)
-            u
+        (Just t, Just u) -> do
+            lights <- collect hueBridgeApi u (Just t)
+            infoM loggerName "Collected light data"
+
+            publish (T.pack $ influxHost sink)
+                    (influxPort sink)
+                    (T.pack $ influxUsername sink)
+                    (T.pack $ influxPassword sink)
+                    lights
+            infoM loggerName "Published light data"
         _ -> warningM loggerName "Token or username missing, can't update home"
+    notifyUser home sink

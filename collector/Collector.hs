@@ -3,8 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Collector
-  ( collectAndPublish,
-  )
+  ( collect, publish)
 where
 
 import Control.Lens
