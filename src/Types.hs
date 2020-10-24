@@ -1,7 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Types where
+module Types
+    ( ClientId
+    , ClientSecret
+    , GoogleClientId
+    , AppId
+    , DeviceId
+    , AppCreds(..)
+    , QueueConfig(..)
+    , VerificationState(..)
+    , fromString
+    , AuthType(..)
+    , authFromString
+    , User(..)
+    , DataPoint(..)
+    , DataPointValue(..)
+    , Home(..)
+    , InfluxSink(..)
+    , MessageToUser(..)
+    )
+where
 
 import           Data.Aeson
 import           Data.Time.Clock
