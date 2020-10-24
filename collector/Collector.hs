@@ -15,8 +15,8 @@ import qualified Data.HashMap.Strict as HM
 import Data.Int (Int64)
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.String (fromString)
-import Data.Text (Text)
+import qualified Data.String as S
+import Data.Text (Text, pack)
 import Data.Time
 import Database.InfluxDB
 import Database.InfluxDB.Format (decimal, key, string)
@@ -25,6 +25,8 @@ import Database.InfluxDB (Server)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+
+import Types as T
 
 type InfluxHost = Text
 type Port = Int
@@ -47,8 +49,38 @@ collectAndPublish host port username password bridgeHost bridgeToken bridgeUsern
   lights <- getLights bridgeHost bridgeUsername bridgeToken
 
   let parsedLights = parseLights lights
-  let metrics = map toLine parsedLights
+  let metrics = map (toLine "light") parsedLights
   writeBatch (wp host port username password) metrics
+
+-- Keys are used as keys AND values for tags, and as keys for fields
+toInfluxKey :: T.DataPointValue -> Key
+toInfluxKey (T.IntValue    val) = formatKey string $ show val
+toInfluxKey (T.DoubleValue val) = formatKey string $ show val
+toInfluxKey (T.StringValue val) = formatKey string val
+toInfluxKey (T.BoolValue   val) = formatKey string $ show val
+
+-- LineFields are used as field values
+toInfluxVal :: T.DataPointValue -> LineField
+toInfluxVal (T.IntValue    val) = FieldInt $ fromIntegral val
+toInfluxVal (T.DoubleValue val) = FieldFloat val
+toInfluxVal (T.StringValue val) = FieldString $ pack val
+toInfluxVal (T.BoolValue   val) = FieldBool val
+
+toInfluxTag :: (String, T.DataPointValue) -> (Key, Key)
+toInfluxTag = bimap (formatKey string) toInfluxKey
+
+toInfluxField :: (String, T.DataPointValue) -> (Key, LineField)
+toInfluxField = bimap (formatKey string) toInfluxVal
+
+toLine :: DataPoint a => Measurement -> a -> Line UTCTime
+toLine measurement light =
+  Line @UTCTime
+    measurement
+    -- Tags:
+    (Map.fromList $ map toInfluxTag (tags light))
+    -- Fields:
+    (Map.fromList $ map toInfluxField (fields light))
+    Nothing
 
 parseLights :: Value -> [Light]
 parseLights value = do
@@ -64,7 +96,7 @@ getLights bridgeIp username token = runReq defaultHttpConfig $ do
   res <-
     req
       GET
-      (https (fromString bridgeIp) /: ("bridge" :: Text) /: fromString username /: ("lights" :: Text))
+      (https (S.fromString bridgeIp) /: ("bridge" :: Text) /: S.fromString username /: ("lights" :: Text))
       NoReqBody
       lbsResponse
       (bearerHeader token)
@@ -75,36 +107,32 @@ getLights bridgeIp username token = runReq defaultHttpConfig $ do
     Just x -> return x
     Nothing -> error "Failed to parse response from Hue Bridge"
 
-toLine :: Light -> Line UTCTime
-toLine light =
-  Line @UTCTime
-    "light"
-    -- Tags:
-    (Map.fromList [("name", formatKey string $ name light), ("uuid", formatKey string $ uuid light), ("type", formatKey string $ typeName light)])
+instance T.DataPoint Light where
+    tags l = [("name", T.StringValue $ name l)
+             , ("uuid", T.StringValue $ lightId l)
+             , ("type", T.StringValue $ typeName l)]
     -- Fields:
-    ( Map.fromList
-        [ ("on", FieldBool (on light)),
-          ("brightness", FieldInt (brightness light)),
-          ("hue", FieldInt (hue light)),
-          ("saturation", FieldInt (saturation light)),
-          ("xcolor", FieldFloat (fst . xyColor $ light)),
-          ("ycolor", FieldFloat (snd . xyColor $ light)),
-          ("ctTemp", FieldInt (ctTemp light)),
-          ("reachable", FieldBool (reachable light))
+    fields l =
+        [ ("on"        , T.BoolValue $ on l)
+        , ("brightness", T.IntValue $ brightness l)
+        , ("hue"       , T.IntValue $ hue l)
+        , ("saturation", T.IntValue $ saturation l)
+        , ("xcolor"    , T.DoubleValue (fst . xyColor $ l))
+        , ("ycolor"    , T.DoubleValue (snd . xyColor $ l))
+        , ("ctTemp"    , T.IntValue $ ctTemp l)
+        , ("reachable" , T.BoolValue $ reachable l)
         ]
-    )
-    Nothing
 
 data Light = Light
   { name :: String,
-    uuid :: String,
+    lightId :: String,
     typeName :: String,
     on :: Bool,
-    brightness :: Int64,
-    hue :: Int64,
-    saturation :: Int64,
+    brightness :: Int,
+    hue :: Int,
+    saturation :: Int,
     xyColor :: (Double, Double),
-    ctTemp :: Int64,
+    ctTemp :: Int,
     reachable :: Bool
   }
   deriving (Show)
