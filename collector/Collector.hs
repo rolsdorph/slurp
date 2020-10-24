@@ -42,15 +42,21 @@ wp hostName port username password =
 type BridgeUsername = String
 type BridgeHost = String
 type Token = String
+collect :: BridgeHost -> BridgeUsername -> Maybe Token -> IO [Light]
+collect host username token = do
+  lights <- getLights host username token
+  pure $ parseLights lights
+
+publish :: InfluxHost -> Port -> Username -> Password -> [Light] -> IO ()
+publish host port username password lights =
+    writeBatch (wp host port username password) $ map (toLine "light") lights
+
 collectAndPublish :: InfluxHost -> Port -> Username -> Password -> BridgeHost -> Maybe Token -> BridgeUsername -> IO ()
 collectAndPublish host port username password bridgeHost bridgeToken bridgeUsername = do
   hSetBuffering stdout LineBuffering
 
-  lights <- getLights bridgeHost bridgeUsername bridgeToken
-
-  let parsedLights = parseLights lights
-  let metrics = map (toLine "light") parsedLights
-  writeBatch (wp host port username password) metrics
+  lights <- collect bridgeHost bridgeUsername bridgeToken
+  publish host port username password lights
 
 -- Keys are used as keys AND values for tags, and as keys for fields
 toInfluxKey :: T.DataPointValue -> Key
