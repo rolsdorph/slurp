@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Collector
-  ( collect, publish)
+  ( collect )
 where
 
 import Control.Lens
@@ -12,31 +11,14 @@ import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.HashMap.Strict as HM
 import Data.Int (Int64)
-import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.String as S
-import Data.Text (Text, pack)
-import Data.Time
-import Database.InfluxDB
-import Database.InfluxDB.Format (decimal, key, string)
+import Data.Text (Text)
 import Network.HTTP.Req
-import Database.InfluxDB (Server)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import Network.HTTP.Client (newManager)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import Types as T
-
-type InfluxHost = Text
-type Port = Int
-type Username = Text
-type Password = Text
-wp :: InfluxHost -> Port -> Username -> Password -> WriteParams
-wp hostName port username password =
-  writeParams "home"
-    & authentication ?~ credentials username password 
-    & server .~ (secureServer & host .~ hostName & Database.InfluxDB.port .~ port)
-    & manager .~ Left tlsManagerSettings
 
 type BridgeUsername = String
 type BridgeHost = String
@@ -45,47 +27,6 @@ collect :: BridgeHost -> BridgeUsername -> Maybe Token -> IO [Light]
 collect host username token = do
   lights <- getLights host username token
   pure $ parseLights lights
-
-publish :: InfluxHost -> Port -> Username -> Password -> [Light] -> IO ()
-publish host port username password lights =
-    writeBatch (wp host port username password) $ map (toLine "light") lights
-
-collectAndPublish :: InfluxHost -> Port -> Username -> Password -> BridgeHost -> Maybe Token -> BridgeUsername -> IO ()
-collectAndPublish host port username password bridgeHost bridgeToken bridgeUsername = do
-  hSetBuffering stdout LineBuffering
-
-  lights <- collect bridgeHost bridgeUsername bridgeToken
-  publish host port username password lights
-
--- Keys are used as keys AND values for tags, and as keys for fields
-toInfluxKey :: T.DataPointValue -> Key
-toInfluxKey (T.IntValue    val) = formatKey string $ show val
-toInfluxKey (T.DoubleValue val) = formatKey string $ show val
-toInfluxKey (T.StringValue val) = formatKey string val
-toInfluxKey (T.BoolValue   val) = formatKey string $ show val
-
--- LineFields are used as field values
-toInfluxVal :: T.DataPointValue -> LineField
-toInfluxVal (T.IntValue    val) = FieldInt $ fromIntegral val
-toInfluxVal (T.DoubleValue val) = FieldFloat val
-toInfluxVal (T.StringValue val) = FieldString $ pack val
-toInfluxVal (T.BoolValue   val) = FieldBool val
-
-toInfluxTag :: (String, T.DataPointValue) -> (Key, Key)
-toInfluxTag = bimap (formatKey string) toInfluxKey
-
-toInfluxField :: (String, T.DataPointValue) -> (Key, LineField)
-toInfluxField = bimap (formatKey string) toInfluxVal
-
-toLine :: DataPoint a => Measurement -> a -> Line UTCTime
-toLine measurement light =
-  Line @UTCTime
-    measurement
-    -- Tags:
-    (Map.fromList $ map toInfluxTag (tags light))
-    -- Fields:
-    (Map.fromList $ map toInfluxField (fields light))
-    Nothing
 
 parseLights :: Value -> [Light]
 parseLights value = do

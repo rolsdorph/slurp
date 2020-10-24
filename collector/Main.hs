@@ -22,11 +22,14 @@ import           HomeDB
 import           InfluxDB
 import           UserDB
 import           Collector
+import           InfluxPublish                  ( publish )
 import           Secrets
 import           Types
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
+influxDbName = "home"
+influxMeasurement = "light"
 
 main :: IO ()
 main = do
@@ -133,6 +136,8 @@ collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
                     (influxPort sink)
                     (T.pack $ influxUsername sink)
                     (T.pack $ influxPassword sink)
+                    influxDbName
+                    influxMeasurement
                     lights
 
             sinkPayload <- buildSinkPayload sink
