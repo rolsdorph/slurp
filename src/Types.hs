@@ -91,6 +91,7 @@ data User = User { userId :: String,
     deriving Show
 
 class DataPoint a where
+    sourceId :: a -> String
     tags :: a -> [(String, DataPointValue)]
     fields :: a -> [(String, DataPointValue)]
 

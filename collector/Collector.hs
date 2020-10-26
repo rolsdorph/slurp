@@ -54,6 +54,7 @@ getLights bridgeIp username token = runReq defaultHttpConfig $ do
     Nothing -> error "Failed to parse response from Hue Bridge"
 
 instance T.DataPoint Light where
+    sourceId = lightId
     tags l = [("name", T.StringValue $ name l)
              , ("uuid", T.StringValue $ lightId l)
              , ("type", T.StringValue $ typeName l)]
