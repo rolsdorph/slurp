@@ -25,6 +25,7 @@ import           Collector
 import           InfluxPublish                  ( publish )
 import           Secrets
 import           Types
+import           UserNotification
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
@@ -69,12 +70,6 @@ main = do
             wait publishJob
         _ -> emergencyM loggerName "User notification queue config missing, not starting"
 
--- Waits for messages and pushes them onto the given channel
-publishNotifications :: ToJSON a => MVar a -> Q.Channel -> T.Text -> IO ()
-publishNotifications messageVar chan routingKey = forever $ do
-    msg <- takeMVar messageVar
-    Q.publishMsg chan "" routingKey $ Q.newMsg { Q.msgBody = encode msg } -- "" = default exchange
-
 -- Publishes data from all sources to all sinks, for all users
 publishAll :: MVar MessageToUser -> MVar SourceData -> IO ()
 publishAll notificationVar dataVar = forever $ do
@@ -96,17 +91,13 @@ publishForUser notificationVar dataVar user = do
     infoM loggerName "Fetching all user sinks..."
     sinks <- getUserInfluxSinks (userId user)
 
-    let userNotifyer = notify notificationVar user
+    let userNotifyer = notify notificationVar $ userId user
     let dataQueuePusher = putMVar dataVar
 
     infoM loggerName "Collecting metrics..."
     forM_ homes (collectHome userNotifyer dataQueuePusher sinks)
 
     infoM loggerName "Done!"
-
-notify :: MVar MessageToUser -> User -> Value -> IO ()
-notify notificationVar user payload =
-    putMVar notificationVar $ MessageToUser (userId user) payload
 
 buildHomePayload :: Home -> IO Value
 buildHomePayload home = do
@@ -128,7 +119,6 @@ buildSinkPayload sink = do
               , "influxId" .= influxUuid sink
               ]
 
-type UserNotifier = Value -> IO ()
 type DataQueuePusher = SourceData -> IO ()
 
 -- Publishes data from the given home to each of the given sinks

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 34aee1a98242c8c057d6180d682eff996dd9fc6bff2caf8ed3473ccee9b54086
+-- hash: 3aab69f55db4174c0d590bf63a3eee2f5570917377d420e4de7acf7ac37e4894
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -40,6 +40,7 @@ library
       TokenDB
       Types
       UserDB
+      UserNotification
       Util
   other-modules:
       Paths_minimal_hue_metrics_website
