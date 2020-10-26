@@ -6,15 +6,23 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
 import           Data.Aeson
+import qualified Data.Text                     as T
+import           Data.Time.Clock
 import qualified Network.AMQP                  as Q
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
+import           HomeDB
+import           InfluxDB
 import           Secrets
 import           Types
+import           InfluxPublish                  ( publish )
+import           UserNotification
 
 loggerName = "InfluxPusher"
+influxDbName = "home" -- TODO: Move to the database
+influxMeasurement = "light"
 
 main :: IO ()
 main = do
@@ -26,17 +34,41 @@ main = do
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
         (Just queueConfig) -> do
-            sourceDataMVar <- newEmptyMVar
-            infoM loggerName "Waiting for data collection events"
+            -- Inter-thread communication
+            userNotificationVar <- newEmptyMVar
+            sourceDataMVar      <- newEmptyMVar
+
+            -- AMQP config
+            queueConnection     <- Q.openConnection (hostname queueConfig)
+                                                    (vhost queueConfig)
+                                                    (username queueConfig)
+                                                    (password queueConfig)
+            queueChannel <- Q.openChannel queueConnection
+
+            Q.declareQueue queueChannel
+                $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
+            Q.declareQueue queueChannel
+                $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
+
+            -- Listen for user notifications, forward them to the queue
+            userNotificationJob <- async $ publishNotifications
+                (userNotificationVar :: MVar MessageToUser)
+                queueChannel
+                (notiQueueName queueConfig)
 
             -- Listen for data, put it on the MVar
             receiveEvents queueConfig sourceDataMVar
 
+            infoM loggerName "Waiting for data collection events"
+
             -- Push data from the MVar onto all sinks for the data owner
-            forever $ forwardToInflux sourceDataMVar
+            forever $ forwardToInflux sourceDataMVar userNotificationVar
 
-        _ -> emergencyM loggerName "Notification queue config not found, refusing to start"
+        _ -> emergencyM
+            loggerName
+            "Notification queue config not found, refusing to start"
 
+-- Waits for incoming AMQP events, puts valid ones on the given MVar
 receiveEvents :: QueueConfig -> MVar SourceData -> IO ()
 receiveEvents queueConfig dataVar = do
     conn <- Q.openConnection (hostname queueConfig)
@@ -46,16 +78,57 @@ receiveEvents queueConfig dataVar = do
     chan <- Q.openChannel conn
     Q.declareQueue chan $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
 
-    Q.consumeMsgs chan (dataQueueName queueConfig) Q.NoAck $ \(msg, envelope) -> do
-        let parsedMsg = eitherDecode $ Q.msgBody msg
-        case parsedMsg of
-             (Right s@(SourceData _ _)) -> putMVar dataVar s
-             (Left err) -> warningM loggerName $ "Ignoring malformed message " ++ err
+    Q.consumeMsgs chan (dataQueueName queueConfig) Q.NoAck
+        $ \(msg, envelope) -> do
+              let parsedMsg = eitherDecode $ Q.msgBody msg
+              case parsedMsg of
+                  (Right s@(SourceData _ _)) -> putMVar dataVar s
+                  (Left err) ->
+                      warningM loggerName $ "Ignoring malformed message " ++ err
 
     return ()
 
+-- Waits for new source data, pushes it onto all relevant user sinks
+forwardToInflux :: MVar SourceData -> MVar MessageToUser -> IO ()
+forwardToInflux dataVar userNotificationVar = do
+    sourceData <- takeMVar dataVar
+    maybeHome  <- getHome (Just $ sourceId sourceData)
+    case maybeHome of
+        (Just home) -> do
+            let maybeOwner = ownerId home
+            case maybeOwner of
+                (Just ownerId) -> do
+                    let userNotifier = notify userNotificationVar ownerId
+                    sinks <- getUserInfluxSinks ownerId
+                    forM_ sinks $ pushToSink sourceData userNotifier
 
-forwardToInflux :: MVar SourceData -> IO ()
-forwardToInflux dataVar = do
-    res <- takeMVar dataVar
-    infoM loggerName "Pushing to Influx!"
+                _ -> errorM loggerName "Received event for home without an id"
+        _ ->
+            errorM loggerName
+                $  "Received event for non-existing home ID "
+                ++ show (sourceId sourceData)
+
+-- Pushes the given data points to the given Influx sink
+pushToSink :: SourceData -> UserNotifier -> InfluxSink -> IO ()
+pushToSink dataToPublish userNotifier sink = do
+    publish (T.pack $ influxHost sink)
+            (influxPort sink)
+            (T.pack $ influxUsername sink)
+            (T.pack $ influxPassword sink)
+            influxDbName
+            influxMeasurement
+            (datapoints dataToPublish)
+
+    sinkPayload <- buildSinkPayload sink
+    userNotifier sinkPayload
+    infoM loggerName "Pushed to a sink"
+
+-- Builds a user notification event payload for a fetch of the given sink
+buildSinkPayload :: InfluxSink -> IO Value
+buildSinkPayload sink = do
+    curTime <- getCurrentTime
+    pure $ object
+        [ "type" .= ("SinkFed" :: String)
+        , "time" .= curTime
+        , "influxId" .= influxUuid sink
+        ]

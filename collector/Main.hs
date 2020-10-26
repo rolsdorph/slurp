@@ -19,18 +19,14 @@ import           System.Log.Logger
 import           System.Log.Handler.Simple
 
 import           HomeDB
-import           InfluxDB
 import           UserDB
 import           Collector
-import           InfluxPublish                  ( publish )
 import           Secrets
 import           Types
 import           UserNotification
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
-influxDbName = "home"
-influxMeasurement = "light"
 
 main :: IO ()
 main = do
@@ -70,7 +66,7 @@ main = do
             wait publishJob
         _ -> emergencyM loggerName "User notification queue config missing, not starting"
 
--- Publishes data from all sources to all sinks, for all users
+-- Publishes data from all user sources to the data queue
 publishAll :: MVar MessageToUser -> MVar SourceData -> IO ()
 publishAll notificationVar dataVar = forever $ do
     infoM loggerName "Fetching users..."
@@ -82,20 +78,17 @@ publishAll notificationVar dataVar = forever $ do
 
     threadDelay (1000 * 1000 * 10) -- 10s
 
--- Publishes data from all user homes to all user sinks
+-- Publishes data from all user homes to the data queue
 publishForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
 publishForUser notificationVar dataVar user = do
     infoM loggerName "Fetching verified user homes..."
     homes <- getUserHomes (userId user)
 
-    infoM loggerName "Fetching all user sinks..."
-    sinks <- getUserInfluxSinks (userId user)
-
     let userNotifyer = notify notificationVar $ userId user
     let dataQueuePusher = putMVar dataVar
 
     infoM loggerName "Collecting metrics..."
-    forM_ homes (collectHome userNotifyer dataQueuePusher sinks)
+    forM_ homes (collectHome userNotifyer dataQueuePusher)
 
     infoM loggerName "Done!"
 
@@ -109,21 +102,11 @@ buildHomePayload home = do
               , "homeId" .= uuid home
               ]
 
-buildSinkPayload :: InfluxSink -> IO Value
-buildSinkPayload sink = do
-    curTime <- getCurrentTime
-    pure
-        $ object
-              [ "type" .= ("SinkFed" :: String)
-              , "time" .= curTime
-              , "influxId" .= influxUuid sink
-              ]
-
 type DataQueuePusher = SourceData -> IO ()
 
--- Publishes data from the given home to each of the given sinks
-collectHome :: UserNotifier -> DataQueuePusher -> [InfluxSink] -> Home -> IO ()
-collectHome notifyUser notifyDataQueue sinks home = forM_ sinks $ \sink -> do
+-- Publishes data from the given home to the data queue
+collectHome :: UserNotifier -> DataQueuePusher -> Home -> IO ()
+collectHome notifyUser notifyDataQueue home = do
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
     let maybeHomeId = uuid home
@@ -139,17 +122,6 @@ collectHome notifyUser notifyDataQueue sinks home = forM_ sinks $ \sink -> do
 
             -- Stick the data on the data queue
             notifyDataQueue $ SourceData {sourceId = homeId, datapoints = map toDataPoint lights}
-
-            publish (T.pack $ influxHost sink)
-                    (influxPort sink)
-                    (T.pack $ influxUsername sink)
-                    (T.pack $ influxPassword sink)
-                    influxDbName
-                    influxMeasurement
-                    (map toDataPoint lights)
-
-            sinkPayload <- buildSinkPayload sink
-            notifyUser sinkPayload
 
             infoM loggerName "Published light data"
         _ -> warningM loggerName "Invalid home data, can't update home"
