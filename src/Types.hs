@@ -14,7 +14,7 @@ module Types
     , AuthType(..)
     , authFromString
     , User(..)
-    , SourceData
+    , SourceData(..)
     , DataPoint(..)
     , DataPointValue(..)
     , Home(..)
@@ -50,7 +50,8 @@ data QueueConfig = QueueConfig {
     vhost :: T.Text,
     username :: T.Text,
     password :: T.Text,
-    queueName :: T.Text
+    notiQueueName :: T.Text,
+    dataQueueName :: T.Text
 }
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
@@ -91,6 +92,14 @@ data User = User { userId :: String,
                    googleUuid :: Maybe String }
     deriving Show
 
+
+data SourceData = SourceData {
+    sourceId :: String,
+    datapoints :: [DataPoint]
+}
+
+instance ToJSON SourceData where
+    toJSON s = object ["sourceId" .= sourceId s, "datapoints" .= datapoints s]
 
 data DataPoint = DataPoint {
     tags :: [(String, DataPointValue)],

@@ -42,7 +42,8 @@ main = do
 
     case maybeQueueConfig of
         (Just queueConfig) -> do
-            notificationVar <- newEmptyMVar
+            userNotificationVar <- newEmptyMVar
+            dataEventsVar <- newEmptyMVar
 
             queueConnection <- Q.openConnection (hostname queueConfig)
                                                 (vhost queueConfig)
@@ -50,36 +51,45 @@ main = do
                                                 (password queueConfig)
             queueChannel    <- Q.openChannel queueConnection
 
-            publishJob      <- async $ publishAll notificationVar
-            notificationJob <- async $ publishNotifications
-                notificationVar
+            Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
+            Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
+
+            publishJob      <- async $ publishAll userNotificationVar dataEventsVar
+
+            userNotificationJob <- async $ publishNotifications
+                (userNotificationVar :: MVar MessageToUser)
                 queueChannel
-                (queueName queueConfig)
+                (notiQueueName queueConfig)
+
+            dataEventsJob <- async $ publishNotifications
+                (dataEventsVar :: MVar SourceData)
+                queueChannel
+                (dataQueueName queueConfig)
 
             wait publishJob
         _ -> emergencyM loggerName "User notification queue config missing, not starting"
 
 -- Waits for messages and pushes them onto the given channel
-publishNotifications :: MVar MessageToUser -> Q.Channel -> T.Text -> IO ()
+publishNotifications :: ToJSON a => MVar a -> Q.Channel -> T.Text -> IO ()
 publishNotifications messageVar chan routingKey = forever $ do
     msg <- takeMVar messageVar
     Q.publishMsg chan "" routingKey $ Q.newMsg { Q.msgBody = encode msg } -- "" = default exchange
 
 -- Publishes data from all sources to all sinks, for all users
-publishAll :: MVar MessageToUser -> IO ()
-publishAll notificationVar = forever $ do
+publishAll :: MVar MessageToUser -> MVar SourceData -> IO ()
+publishAll notificationVar dataVar = forever $ do
     infoM loggerName "Fetching users..."
     users <- getAllUsers
 
-    forM_ users $ publishForUser notificationVar
+    forM_ users $ publishForUser notificationVar dataVar
 
     infoM loggerName "All done, soon looping again!"
 
     threadDelay (1000 * 1000 * 10) -- 10s
 
 -- Publishes data from all user homes to all user sinks
-publishForUser :: MVar MessageToUser -> User -> IO ()
-publishForUser notificationVar user = do
+publishForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
+publishForUser notificationVar dataVar user = do
     infoM loggerName "Fetching verified user homes..."
     homes <- getUserHomes (userId user)
 
@@ -87,9 +97,10 @@ publishForUser notificationVar user = do
     sinks <- getUserInfluxSinks (userId user)
 
     let userNotifyer = notify notificationVar user
+    let dataQueuePusher = putMVar dataVar
 
     infoM loggerName "Collecting metrics..."
-    forM_ homes (collectHome userNotifyer sinks)
+    forM_ homes (collectHome userNotifyer dataQueuePusher sinks)
 
     infoM loggerName "Done!"
 
@@ -118,19 +129,26 @@ buildSinkPayload sink = do
               ]
 
 type UserNotifier = Value -> IO ()
+type DataQueuePusher = SourceData -> IO ()
 
 -- Publishes data from the given home to each of the given sinks
-collectHome :: UserNotifier -> [InfluxSink] -> Home -> IO ()
-collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
+collectHome :: UserNotifier -> DataQueuePusher -> [InfluxSink] -> Home -> IO ()
+collectHome notifyUser notifyDataQueue sinks home = forM_ sinks $ \sink -> do
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
-    case (maybeToken, maybeUsername) of
-        (Just t, Just u) -> do
+    let maybeHomeId = uuid home
+    case (maybeToken, maybeUsername, maybeHomeId) of
+        (Just t, Just u, Just homeId) -> do
+            -- Get the data
             lights <- collect hueBridgeApi u (Just t)
             infoM loggerName "Collected light data"
 
+            -- Notify the user that we've collected it
             homePayload <- buildHomePayload home
             notifyUser homePayload
+
+            -- Stick the data on the data queue
+            notifyDataQueue $ SourceData {sourceId = homeId, datapoints = map toDataPoint lights}
 
             publish (T.pack $ influxHost sink)
                     (influxPort sink)
@@ -144,4 +162,4 @@ collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
             notifyUser sinkPayload
 
             infoM loggerName "Published light data"
-        _ -> warningM loggerName "Token or username missing, can't update home"
+        _ -> warningM loggerName "Invalid home data, can't update home"

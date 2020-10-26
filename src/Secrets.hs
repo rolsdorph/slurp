@@ -38,7 +38,8 @@ readUserNotificationQueueConfig = do
     vhost     <- lookupEnv "rmqVhost"
     username  <- lookupEnv "rmqUsername"
     password  <- lookupEnv "rmqPassword"
-    queueName <- lookupEnv "userNotificationQueueName"
+    notiQueueName <- lookupEnv "userNotificationQueueName"
+    dataQueueName <- lookupEnv "dataQueueName"
 
     pure
         $   QueueConfig
@@ -46,4 +47,5 @@ readUserNotificationQueueConfig = do
         <*> (T.pack <$> vhost)
         <*> (T.pack <$> username)
         <*> (T.pack <$> password)
-        <*> (T.pack <$> queueName)
+        <*> (T.pack <$> notiQueueName)
+        <*> (T.pack <$> dataQueueName)

@@ -56,7 +56,6 @@ main = do
     stdOutHandler <- verboseStreamHandler stdout DEBUG
     updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
         (Just queueConfig) -> do
@@ -78,9 +77,9 @@ forwardEvents connectionsVar queueConfig = do
                              (username queueConfig)
                              (password queueConfig)
     chan <- Q.openChannel conn
-    Q.declareQueue chan $ Q.newQueue { Q.queueName = (queueName queueConfig) }
+    Q.declareQueue chan $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
 
-    Q.consumeMsgs chan (queueName queueConfig) Q.NoAck $ \(msg, envelope) -> do
+    Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck $ \(msg, envelope) -> do
         let parsedMsg = eitherDecode $ Q.msgBody msg
         case parsedMsg of
             (Right (MessageToUser targetUserId payload)) -> do
