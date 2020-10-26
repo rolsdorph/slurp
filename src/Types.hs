@@ -24,11 +24,13 @@ module Types
 where
 
 import           Data.Aeson
+import           Data.Aeson.Types
 import           Data.Time.Clock
 import           Data.Convertible
 import           Database.HDBC.SqlValue
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.Text                     as T
+import           Data.Scientific
 
 type ClientId = U.ByteString
 type GoogleClientId = T.Text
@@ -101,6 +103,10 @@ data SourceData = SourceData {
 instance ToJSON SourceData where
     toJSON s = object ["sourceId" .= sourceId s, "datapoints" .= datapoints s]
 
+instance FromJSON SourceData where
+    parseJSON = withObject "SourceData"
+        $ \d -> SourceData <$> d .: "sourceId" <*> d .: "datapoints"
+
 data DataPoint = DataPoint {
     tags :: [(String, DataPointValue)],
     fields :: [(String, DataPointValue)]
@@ -109,6 +115,10 @@ data DataPoint = DataPoint {
 instance ToJSON DataPoint where
     toJSON dp =
         object ["tags" .= tags dp, "fields" .= fields dp]
+
+instance FromJSON DataPoint where
+    parseJSON = withObject "DataPoint"
+        $ \d -> DataPoint <$> d .: "tags" <*> d .: "fields"
 
 data DataPointValue = IntValue Int
                     | DoubleValue Double
@@ -120,6 +130,20 @@ instance ToJSON DataPointValue where
     toJSON (DoubleValue val) = toJSON val
     toJSON (StringValue val) = toJSON val
     toJSON (BoolValue val) = toJSON val
+
+instance FromJSON DataPointValue where
+    parseJSON (String s  ) = pure $ StringValue (T.unpack s)
+    parseJSON (Number val) = if isInteger val
+        then parseIntNumber val
+        else pure (DoubleValue $ toRealFloat val)
+    parseJSON (Bool b) = pure $ BoolValue b
+    parseJSON _        = fail "Unexpected JSON data type"
+
+parseIntNumber :: Scientific -> Parser DataPointValue
+parseIntNumber val = case parseRes of
+                          Just v -> pure $ IntValue v
+                          Nothing -> fail "Failed to parse int"
+    where parseRes = toBoundedInteger val
 
 data Home = Home { uuid :: Maybe String
                  , ownerId :: Maybe String

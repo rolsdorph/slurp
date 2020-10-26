@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ce706c94f155d5b29c18996a45870ed1cb283fb7e74660175a9d20c2d2dc42c4
+-- hash: 34aee1a98242c8c057d6180d682eff996dd9fc6bff2caf8ed3473ccee9b54086
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -70,6 +70,7 @@ library
     , pcre-light
     , regex-base
     , req
+    , scientific
     , stringsearch
     , text
     , time
@@ -117,6 +118,7 @@ executable hue-metrics-collector-exe
     , pcre-light
     , regex-base
     , req
+    , scientific
     , stringsearch
     , text
     , time
@@ -163,6 +165,54 @@ executable hue-metrics-server-exe
     , pcre-light
     , regex-base
     , req
+    , scientific
+    , stringsearch
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+    , websockets
+  default-language: Haskell2010
+
+executable influx-pusher-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_minimal_hue_metrics_website
+  hs-source-dirs:
+      influxpusher
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , aeson
+    , amqp
+    , async
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , case-insensitive
+    , containers
+    , convertible
+    , cryptohash-md5
+    , hslogger
+    , hspec
+    , http-client
+    , http-client-tls
+    , http-types
+    , influxdb
+    , jose
+    , lens
+    , minimal-hue-metrics-website
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , scientific
     , stringsearch
     , text
     , time
@@ -209,6 +259,7 @@ executable notifier-exe
     , pcre-light
     , regex-base
     , req
+    , scientific
     , stringsearch
     , text
     , time
@@ -256,6 +307,7 @@ test-suite google-login-test
     , pcre-light
     , regex-base
     , req
+    , scientific
     , stringsearch
     , text
     , time
@@ -303,6 +355,7 @@ test-suite minimal-hue-metrics-website-test
     , pcre-light
     , regex-base
     , req
+    , scientific
     , stringsearch
     , text
     , time
