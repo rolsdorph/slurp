@@ -26,7 +26,7 @@ type Port = Int
 type Username = Text
 type Password = Text
 publish
-    :: DataPoint a => InfluxHost -> Port -> Username -> Password -> Database -> Measurement -> [a] -> IO ()
+    :: InfluxHost -> Port -> Username -> Password -> Database -> Measurement -> [DataPoint] -> IO ()
 publish host port username password db measurement points =
     writeBatch (mkWriteParams host port username password db)
         $ map (toLine measurement) points
@@ -61,7 +61,7 @@ toInfluxTag = bimap (formatKey string) toInfluxKey
 toInfluxField :: (String, DataPointValue) -> (Key, LineField)
 toInfluxField = bimap (formatKey string) toInfluxVal
 
-toLine :: DataPoint a => Measurement -> a -> Line UTCTime
+toLine :: Measurement -> DataPoint -> Line UTCTime
 toLine measurement element = Line @UTCTime
     measurement
     -- Tags:

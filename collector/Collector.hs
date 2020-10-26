@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Collector
-  ( collect )
+  ( collect, toDataPoint )
 where
 
 import Control.Lens
@@ -53,13 +53,12 @@ getLights bridgeIp username token = runReq defaultHttpConfig $ do
     Just x -> return x
     Nothing -> error "Failed to parse response from Hue Bridge"
 
-instance T.DataPoint Light where
-    sourceId = lightId
-    tags l = [("name", T.StringValue $ name l)
+toDataPoint :: Light -> T.DataPoint
+toDataPoint l = T.DataPoint {
+    tags = [("name", T.StringValue $ name l)
              , ("uuid", T.StringValue $ lightId l)
-             , ("type", T.StringValue $ typeName l)]
-    -- Fields:
-    fields l =
+             , ("type", T.StringValue $ typeName l)],
+    fields =
         [ ("on"        , T.BoolValue $ on l)
         , ("brightness", T.IntValue $ brightness l)
         , ("hue"       , T.IntValue $ hue l)
@@ -69,6 +68,7 @@ instance T.DataPoint Light where
         , ("ctTemp"    , T.IntValue $ ctTemp l)
         , ("reachable" , T.BoolValue $ reachable l)
         ]
+}
 
 data Light = Light
   { name :: String,

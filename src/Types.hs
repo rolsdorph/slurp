@@ -14,6 +14,7 @@ module Types
     , AuthType(..)
     , authFromString
     , User(..)
+    , SourceData
     , DataPoint(..)
     , DataPointValue(..)
     , Home(..)
@@ -90,15 +91,26 @@ data User = User { userId :: String,
                    googleUuid :: Maybe String }
     deriving Show
 
-class DataPoint a where
-    sourceId :: a -> String
-    tags :: a -> [(String, DataPointValue)]
-    fields :: a -> [(String, DataPointValue)]
+
+data DataPoint = DataPoint {
+    tags :: [(String, DataPointValue)],
+    fields :: [(String, DataPointValue)]
+}
+
+instance ToJSON DataPoint where
+    toJSON dp =
+        object ["tags" .= tags dp, "fields" .= fields dp]
 
 data DataPointValue = IntValue Int
                     | DoubleValue Double
                     | StringValue String
                     | BoolValue Bool
+
+instance ToJSON DataPointValue where
+    toJSON (IntValue val) = toJSON val
+    toJSON (DoubleValue val) = toJSON val
+    toJSON (StringValue val) = toJSON val
+    toJSON (BoolValue val) = toJSON val
 
 data Home = Home { uuid :: Maybe String
                  , ownerId :: Maybe String

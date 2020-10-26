@@ -138,7 +138,7 @@ collectHome notifyUser sinks home = forM_ sinks $ \sink -> do
                     (T.pack $ influxPassword sink)
                     influxDbName
                     influxMeasurement
-                    lights
+                    (map toDataPoint lights)
 
             sinkPayload <- buildSinkPayload sink
             notifyUser sinkPayload
