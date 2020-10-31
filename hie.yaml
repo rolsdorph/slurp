@@ -10,5 +10,7 @@ cradle:
       component: "minimal-hue-metrics-website:exe:notifier-exe"
     - path: "./influxpusher"
       component: "minimal-hue-metrics-website:exe:influx-pusher-exe"
+    - path: "./simple-json-collector"
+      component: "minimal-hue-metrics-website:exe:simple-json-collector-exe"
     - path: "./test"
       component: "minimal-hue-metrics-website:test:minimal-hue-metrics-website-test"
