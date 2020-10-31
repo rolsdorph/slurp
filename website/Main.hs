@@ -15,6 +15,7 @@ import           TokenDB
 import           InfluxDB
 
 import           HomeDB
+import           SimpleSourceDB
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp      as W
                                                 ( run )
@@ -59,15 +60,17 @@ app creds keys request respond = do
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"        )   -> pure index
-        ("GET" , "/login"   )   -> pure loginLanding
-        ("POST", "/googleAuth") -> googleAuth creds keys (fst reqBodyParsed)
-        ("GET", "/sinks"    )   -> getSinks currentUser
-        ("POST", "/sinks"   )   -> postSink creds currentUser (fst reqBodyParsed)
-        ("GET", "/homes"    )   -> getHomes currentUser
-        ("POST", "/homes"   )   -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
-        ("GET" , "/callback")   -> hueOauthCallback creds (queryString request)
-        (_     , _          )   -> pure notFound
+        ("GET" , "/"             ) -> pure index
+        ("GET" , "/login"        ) -> pure loginLanding
+        ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
+        ("GET", "/sinks"         ) -> getSinks currentUser
+        ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
+        ("GET", "/homes"         ) -> getHomes currentUser
+        ("POST", "/homes"        ) -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
+        ("GET", "/simpleSources" ) -> getSimpleSources currentUser
+        ("POST", "/simpleSources") -> postSimpleSource creds currentUser (fst reqBodyParsed)
+        ("GET" , "/callback"     ) -> hueOauthCallback creds (queryString request)
+        (_     , _               ) -> pure notFound
 
     respond response
 
@@ -83,6 +86,7 @@ main = do
     HomeDB.setupDb
     TokenDB.setupDb
     InfluxDB.setupDb
+    SimpleSourceDB.setupDb
 
     infoM loggerName "http://localhost:8080/"
 
@@ -202,6 +206,30 @@ getHomes Nothing            = pure unauthenticated
 getHomes (Just currentUser) = do
     homes <- getUserHomes (userId currentUser)
     pure $ success200Json homes
+
+-- GET /simpleSources
+getSimpleSources :: Maybe User -> IO Response
+getSimpleSources Nothing            = pure unauthenticated
+getSimpleSources (Just currentUser) = do
+    sources <- getUserSimpleSources (userId currentUser)
+    pure $ success200Json sources
+
+-- POST /simpleSources
+postSimpleSource :: AppCreds -> Maybe User -> [Param] -> IO Response
+postSimpleSource _     Nothing            _      = pure unauthenticated
+postSimpleSource creds (Just currentUser) params = do
+    parsedSource <- simpleSourceFrom currentUser params
+
+    case parsedSource of
+        (Right source) -> do
+            infoM loggerName "Storing simple source..."
+            storeSourceRes <- storeSimpleSource source
+
+            case storeSourceRes of
+                Just storedSource -> return $ success201Json storedSource
+                _               -> return $ err500 "Couldn't complete operation"
+
+        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
 
 -- POST /sinks
 postSink :: AppCreds -> Maybe User -> [Param] -> IO Response
@@ -465,3 +493,20 @@ influxSinkFrom currentUser params = do
         <*> (C.unpack . snd <$> lookupParam "influxHost" params)
         <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
         <*> pure currentTime
+
+-- Attempts to construct a simple JSON source
+simpleSourceFrom :: User -> [Param] -> IO (Either L.ByteString SimpleShallowJsonSource)
+simpleSourceFrom currentUser params = do
+    currentTime <- getCurrentTime
+
+    pure $ SimpleShallowJsonSource <$> pure Nothing
+        <*> (C.unpack . snd <$> lookupParam "datakey" params)
+        <*> pure (userId currentUser)
+        <*> pure currentTime
+        <*> (T.pack . C.unpack . snd <$> lookupParam "url" params)
+        <*> (snd <$> lookupParam "authHeader" params)
+        <*> (eitherDecodeLBS =<< (snd <$> lookupParam "tagMappings" params))
+        <*> (eitherDecodeLBS =<< (snd <$> lookupParam "fieldMappings" params))
+
+eitherDecodeLBS :: FromJSON a => U.ByteString -> Either LB.ByteString a
+eitherDecodeLBS input = mapLeft (LB.fromStrict . C.pack) (eitherDecode (LB.fromStrict input))
