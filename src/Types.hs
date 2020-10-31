@@ -98,7 +98,7 @@ data User = User { userId :: String,
 data SourceData = SourceData {
     sourceId :: String,
     datapoints :: [DataPoint]
-}
+} deriving Show
 
 instance ToJSON SourceData where
     toJSON s = object ["sourceId" .= sourceId s, "datapoints" .= datapoints s]
@@ -110,7 +110,7 @@ instance FromJSON SourceData where
 data DataPoint = DataPoint {
     tags :: [(String, DataPointValue)],
     fields :: [(String, DataPointValue)]
-}
+} deriving Show
 
 instance ToJSON DataPoint where
     toJSON dp =
@@ -124,6 +124,7 @@ data DataPointValue = IntValue Int
                     | DoubleValue Double
                     | StringValue String
                     | BoolValue Bool
+    deriving Show
 
 instance ToJSON DataPointValue where
     toJSON (IntValue val) = toJSON val

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Util where
@@ -17,6 +18,17 @@ mapRight mapper (Right err) = Right (mapper err)
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft _ (Right x) = Right x
 mapLeft mapper (Left err) = Left (mapper err)
+
+rightOrNothing :: Either String a -> Maybe a
+rightOrNothing (Right val) = Just val
+rightOrNothing (Left  _  ) = Nothing
+
+logErrors :: (String -> IO ()) -> [Either String a] -> IO ()
+logErrors logger = mapM_
+    (\case
+        (Left errMsg) -> logger errMsg
+        _             -> pure ()
+    )
 
 combineEithers :: Either L.ByteString a -> Either L.ByteString a -> Either L.ByteString (a,a)
 combineEithers (Right x) (Right y) = Right (x, y)
