@@ -8,6 +8,7 @@ import           Control.Monad
 import           Data.Aeson
 import qualified Data.Text                     as T
 import           Data.Time.Clock
+import qualified Database.InfluxDB.Types       as I
 import qualified Network.AMQP                  as Q
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
@@ -22,7 +23,6 @@ import           UserNotification
 
 loggerName = "InfluxPusher"
 influxDbName = "home" -- TODO: Move to the database
-influxMeasurement = "light"
 
 main :: IO ()
 main = do
@@ -82,7 +82,7 @@ receiveEvents queueConfig dataVar = do
         $ \(msg, envelope) -> do
               let parsedMsg = eitherDecode $ Q.msgBody msg
               case parsedMsg of
-                  (Right s@(SourceData _ _)) -> putMVar dataVar s
+                  (Right s@(SourceData _ _ _)) -> putMVar dataVar s
                   (Left err) ->
                       warningM loggerName $ "Ignoring malformed message " ++ err
 
@@ -116,7 +116,7 @@ pushToSink dataToPublish userNotifier sink = do
             (T.pack $ influxUsername sink)
             (T.pack $ influxPassword sink)
             influxDbName
-            influxMeasurement
+            (I.Measurement $ T.pack (datakey dataToPublish))
             (datapoints dataToPublish)
 
     sinkPayload <- buildSinkPayload sink

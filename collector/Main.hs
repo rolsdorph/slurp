@@ -110,8 +110,9 @@ collectHome notifyUser notifyDataQueue home = do
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
     let maybeHomeId = uuid home
-    case (maybeToken, maybeUsername, maybeHomeId) of
-        (Just t, Just u, Just homeId) -> do
+    let maybeDatakey = homeDataKey home
+    case (maybeToken, maybeUsername, maybeHomeId, maybeDatakey) of
+        (Just t, Just u, Just homeId, Just d) -> do
             -- Get the data
             lights <- collect hueBridgeApi u (Just t)
             infoM loggerName "Collected light data"
@@ -121,7 +122,7 @@ collectHome notifyUser notifyDataQueue home = do
             notifyUser homePayload
 
             -- Stick the data on the data queue
-            notifyDataQueue $ SourceData {sourceId = homeId, datapoints = map toDataPoint lights}
+            notifyDataQueue $ SourceData {sourceId = homeId, datakey = d, datapoints = map toDataPoint lights}
 
             infoM loggerName "Published light data"
         _ -> warningM loggerName "Invalid home data, can't update home"

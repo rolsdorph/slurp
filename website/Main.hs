@@ -65,7 +65,7 @@ app creds keys request respond = do
         ("GET", "/sinks"    )   -> getSinks currentUser
         ("POST", "/sinks"   )   -> postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"    )   -> getHomes currentUser
-        ("POST", "/homes"   )   -> postHome creds currentUser (queryString request)
+        ("POST", "/homes"   )   -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET" , "/callback")   -> hueOauthCallback creds (queryString request)
         (_     , _          )   -> pure notFound
 
@@ -221,22 +221,27 @@ postSink creds (Just currentUser) params = do
         (Left e) -> return (badRequest $ "Malformed request body: " <> e)
 
 -- POST /homes
-postHome :: AppCreds -> Maybe User -> HTTP.Query -> IO Response
-postHome _     Nothing            _           = pure unauthenticated
-postHome creds (Just currentUser) queryParams = do
-    home <- homeFrom currentUser
+postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> IO Response
+postHome _     Nothing            _      _           = pure unauthenticated
+postHome creds (Just currentUser) params queryParams = do
+    home <- homeFrom currentUser params
 
-    let redirectInBodyQParam = getParamValue "redirectUrlInBody" queryParams
-    let redirectInBody = case redirectInBodyQParam of
-            (Right "true") -> True
-            _              -> False
+    case home of
+        (Left  err        ) -> pure $ badRequest err
+        (Right createdHome) -> do
+            let redirectInBodyQParam =
+                    getParamValue "redirectUrlInBody" queryParams
+            let redirectInBody = case redirectInBodyQParam of
+                    (Right "true") -> True
+                    _              -> False
 
-    infoM loggerName "Storing home..."
-    storeHomeRes <- storeHome home
+            infoM loggerName "Storing home..."
+            storeHomeRes <- storeHome createdHome
 
-    case storeHomeRes of
-        Just storedHome -> hueOauthRedirect creds storedHome redirectInBody
-        _               -> return $ err500 "Couldn't complete operation"
+            case storeHomeRes of
+                Just storedHome ->
+                    hueOauthRedirect creds storedHome redirectInBody
+                _ -> return $ err500 "Couldn't complete operation"
 
 hueOauthRedirect :: AppCreds -> Home -> Bool -> IO Response
 hueOauthRedirect creds home redirectInBody = case oauthState home of
@@ -424,21 +429,27 @@ lookupParam paramName params =
     justOrErr ("Couldn't find param " <> paramName)
         $ find (paramNamed paramName) params
 
--- Constructs a new Home DTO with the given user as the owner
-homeFrom :: User -> IO Home
-homeFrom currentUser = do
+-- Constructs a new Home DTO with the given user as the owner, and the data key from the given params
+homeFrom :: User -> [Param] -> IO (Either LB.ByteString Home)
+homeFrom currentUser params = do
     currentTime <- getCurrentTime
+    let maybeKey = mapRight (C.unpack . snd) (lookupParam "datakey" params)
 
-    pure $ Home Nothing
-                (Just $ userId currentUser)
-                currentTime
-                OAuthPending
-                Nothing
-                Nothing
-                Nothing
-                Nothing
-                Nothing
-                Nothing
+    case maybeKey of
+        (Left  err) -> pure $ Left err
+        (Right key) -> pure
+            (Right $ Home Nothing
+                          (Just key)
+                          (Just $ userId currentUser)
+                          currentTime
+                          OAuthPending
+                          Nothing
+                          Nothing
+                          Nothing
+                          Nothing
+                          Nothing
+                          Nothing
+            )
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
 influxSinkFrom :: User -> [Param] -> IO (Either L.ByteString InfluxSink)

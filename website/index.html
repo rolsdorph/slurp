@@ -48,7 +48,7 @@
             getAndRender(targetDiv, "sink-", "/sinks");
         }
 
-        function addHome() {
+        function addHome(form) {
             const XHR = new XMLHttpRequest();
 
             XHR.addEventListener("load", function (event) {
@@ -66,7 +66,7 @@
             XHR.responseType = "json";
             XHR.open("POST", "/homes?redirectUrlInBody=true");
             addAuth(XHR);
-            XHR.send();
+            XHR.send(new FormData(form));
         }
 
         function flash(elem, color) {
@@ -120,18 +120,19 @@
                 }
             };
 
-            const form = document.getElementById("sinkForm");
-            form.addEventListener("submit", function (event) {
+            const sinkForm = document.getElementById("sinkForm");
+            sinkForm.addEventListener("submit", function (event) {
                 event.preventDefault();
 
-                addSink(form);
+                addSink(sinkForm);
             });
 
+            const homeForm = document.getElementById("homeForm");
             document
                 .getElementById("addHomeButton")
                 .addEventListener("click", function (event) {
                     event.preventDefault();
-                    addHome();
+                    addHome(homeForm);
                 });
 
             loadHomes();
@@ -158,7 +159,11 @@
     </form>
 
     <h2>Add Home</h2>
-    <input type="button" value="Add Hue home" id="addHomeButton" />
+    <form id="homeForm">
+        <label for="datakey">Data key:</label>
+        <input type="text" name="datakey" id="datakey" />
+        <input type="submit" value="Add Hue home" id="addHomeButton" />
+    </form>
 
     <h2>Homes</h2>
     <div id="homeList"></div>

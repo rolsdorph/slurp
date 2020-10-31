@@ -101,15 +101,25 @@ data User = User { userId :: String,
 
 data SourceData = SourceData {
     sourceId :: String,
+    datakey :: String,
     datapoints :: [DataPoint]
 } deriving Show
 
 instance ToJSON SourceData where
-    toJSON s = object ["sourceId" .= sourceId s, "datapoints" .= datapoints s]
+    toJSON s = object
+        [ "sourceId" .= sourceId s
+        , "datakey" .= datakey s
+        , "datapoints" .= datapoints s
+        ]
 
 instance FromJSON SourceData where
-    parseJSON = withObject "SourceData"
-        $ \d -> SourceData <$> d .: "sourceId" <*> d .: "datapoints"
+    parseJSON =
+        withObject "SourceData"
+            $ \d ->
+                  SourceData
+                      <$> d .:  "sourceId"
+                      <*> d .:  "datakey"
+                      <*> d .:  "datapoints"
 
 data DataPoint = DataPoint {
     tags :: [(String, DataPointValue)],
@@ -151,6 +161,7 @@ parseIntNumber val = case parseRes of
     where parseRes = toBoundedInteger val
 
 data Home = Home { uuid :: Maybe String
+                 , homeDataKey :: Maybe String
                  , ownerId :: Maybe String
                  , createdAt :: UTCTime
                  , state :: VerificationState
@@ -163,9 +174,10 @@ data Home = Home { uuid :: Maybe String
     deriving Show
 
 instance ToJSON Home where
-    toJSON (Home uuid _ createdAt state _ _ _ _ _ _)
+    toJSON (Home uuid homeDataKey _ createdAt state _ _ _ _ _ _)
         = object
             [ "id" .= uuid
+            , "datakey" .= homeDataKey
             , "state" .= state
             , "createdAt" .= createdAt
             ]
@@ -210,6 +222,7 @@ type MappedValue = (TagOrFieldName, DataPointValue)
 
 data SimpleShallowJsonSource = SimpleShallowJsonSource {
     genericSourceId :: String,
+    genericDataKey :: String,
     shallowOwnerId :: String, -- TODO: Figure out how to properly deal with these conflicts.. are records really the way to go?
     shallowCreatedAt :: UTCTime,
     url :: T.Text,

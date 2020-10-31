@@ -56,6 +56,7 @@ extract logger definition value = do
     let dp     = DataPoint { tags = tags, fields = fields }
 
     pure $ SourceData { sourceId   = genericSourceId definition
+                      , datakey = genericDataKey definition
                       , datapoints = [dp]
                       }
 

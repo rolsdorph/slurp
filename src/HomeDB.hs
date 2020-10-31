@@ -22,6 +22,7 @@ createStmt =
         ++ homeTableName
         ++ " (\
        \ uuid text NOT NULL, \
+       \ datakey text NOT NULL, \
        \ ownerId text NOT NULL, \
        \ state text DEFAULT 'Pending',\
        \ oauthState text NULL,\
@@ -76,10 +77,11 @@ storeHome home = do
         conn
         ("INSERT INTO "
         ++ homeTableName
-        ++ "(uuid, ownerId, createdAt, oauthState) \
-                                    \ VALUES (?, ?, ?, ?)"
+        ++ "(uuid, datakey, ownerId, createdAt, oauthState) \
+                                    \ VALUES (?, ?, ?, ?, ?)"
         )
         [ toSql uuid
+        , toSql $ homeDataKey home
         , toSql $ ownerId home
         , toSql $ createdAt home
         , toSql oauthState
@@ -140,6 +142,7 @@ parseHomeRow :: [(String, SqlValue)] -> Maybe Home
 parseHomeRow vals =
     Home
         <$> valFrom "uuid" vals
+        <*> pure (valFrom "datakey" vals)
         <*> pure (valFrom "ownerId" vals)
         <*> valFrom "createdAt" vals
         <*> (fromString <$> valFrom "state" vals)

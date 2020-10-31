@@ -24,6 +24,7 @@ main = do
     let
         testSource = SimpleShallowJsonSource
             { genericSourceId = "asd"
+            , genericDataKey = "some-measurement"
             , shallowCreatedAt = currentTime
             , shallowOwnerId = "bcg"
             , url = "https://static.rolsdorph.io/simpletest.json"
