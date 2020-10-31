@@ -36,13 +36,16 @@ collect logger source = runReq defaultHttpConfig $ do
             case decoded of
                 (Right val) -> do
                     res <- liftIO $ extract logger source val
-                    pure $ pure res
+                    pure res
                 (Left err) -> pure $ Left err
 
         _ -> pure $ Left "Failed to parse collection URL"
 
 extract
-    :: (String -> IO ()) -> SimpleShallowJsonSource -> Value -> IO SourceData
+    :: (String -> IO ())
+    -> SimpleShallowJsonSource
+    -> Value
+    -> IO (Either String SourceData)
 extract logger definition value = do
     let tagsOrErrors   = List.map (getValue value) $ tagMappings definition
     let fieldsOrErrors = List.map (getValue value) $ fieldMappings definition
@@ -50,15 +53,19 @@ extract logger definition value = do
     logErrors logger tagsOrErrors
     logErrors logger fieldsOrErrors
 
-    let tags   = mapMaybe rightOrNothing tagsOrErrors
-    let fields = mapMaybe rightOrNothing fieldsOrErrors
+    let tags          = mapMaybe rightOrNothing tagsOrErrors
+    let fields        = mapMaybe rightOrNothing fieldsOrErrors
 
-    let dp     = DataPoint { tags = tags, fields = fields }
+    let dp            = DataPoint { tags = tags, fields = fields }
 
-    pure $ SourceData { sourceId   = genericSourceId definition
-                      , datakey = genericDataKey definition
-                      , datapoints = [dp]
-                      }
+    let maybeSourceId = genericSourceId definition
+    case maybeSourceId of
+        (Just sourceId) -> pure $ Right (SourceData {
+                                                sourceId   = sourceId,
+                                                datakey    = genericDataKey definition,
+                                                datapoints = [dp]
+                                  })
+        _ -> pure $ Left "Source ID missing, skipping source"
 
 getValue :: Value -> JsonMapping -> Either String MappedValue
 getValue value mapping = mapRight (snd mapping, )

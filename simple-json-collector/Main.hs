@@ -23,7 +23,7 @@ main = do
 
     let
         testSource = SimpleShallowJsonSource
-            { genericSourceId = "asd"
+            { genericSourceId = Just "asd"
             , genericDataKey = "some-measurement"
             , shallowCreatedAt = currentTime
             , shallowOwnerId = "bcg"

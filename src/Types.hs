@@ -221,7 +221,7 @@ type JsonMapping = (JsonPath, TagOrFieldName)
 type MappedValue = (TagOrFieldName, DataPointValue)
 
 data SimpleShallowJsonSource = SimpleShallowJsonSource {
-    genericSourceId :: String,
+    genericSourceId :: Maybe String,
     genericDataKey :: String,
     shallowOwnerId :: String, -- TODO: Figure out how to properly deal with these conflicts.. are records really the way to go?
     shallowCreatedAt :: UTCTime,
