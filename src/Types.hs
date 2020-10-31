@@ -20,6 +20,9 @@ module Types
     , Home(..)
     , InfluxSink(..)
     , MessageToUser(..)
+    , JsonMapping
+    , MappedValue
+    , SimpleShallowJsonSource (..)
     )
 where
 
@@ -29,6 +32,7 @@ import           Data.Time.Clock
 import           Data.Convertible
 import           Database.HDBC.SqlValue
 import qualified Data.ByteString.UTF8          as U
+import qualified Data.ByteString               as B
 import qualified Data.Text                     as T
 import           Data.Scientific
 
@@ -198,3 +202,27 @@ instance ToJSON MessageToUser where
 instance FromJSON MessageToUser where
     parseJSON = withObject "Message"
         $ \m -> MessageToUser <$> m .: "targetUserId" <*> m .: "payload"
+
+type JsonPath = T.Text
+type TagOrFieldName = String
+type JsonMapping = (JsonPath, TagOrFieldName)
+type MappedValue = (TagOrFieldName, DataPointValue)
+
+data SimpleShallowJsonSource = SimpleShallowJsonSource {
+    genericSourceId :: String,
+    shallowOwnerId :: String, -- TODO: Figure out how to properly deal with these conflicts.. are records really the way to go?
+    shallowCreatedAt :: UTCTime,
+    url :: T.Text,
+    authHeader :: B.ByteString,
+    tagMappings :: [JsonMapping],
+    fieldMappings :: [JsonMapping]
+}
+
+instance ToJSON SimpleShallowJsonSource where
+    toJSON (SimpleShallowJsonSource uuid datakey _ createdAt url _ _ _) =
+        object
+            [ "id" .= uuid
+            , "datakey" .= datakey
+            , "createdAt" .= createdAt
+            , "url" .= url
+            ]
