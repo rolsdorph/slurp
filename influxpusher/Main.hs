@@ -82,7 +82,7 @@ receiveEvents queueConfig dataVar = do
         $ \(msg, envelope) -> do
               let parsedMsg = eitherDecode $ Q.msgBody msg
               case parsedMsg of
-                  (Right s@(SourceData _ _ _)) -> putMVar dataVar s
+                  (Right s@(SourceData _ _ _ _)) -> putMVar dataVar s
                   (Left err) ->
                       warningM loggerName $ "Ignoring malformed message " ++ err
 
@@ -92,21 +92,10 @@ receiveEvents queueConfig dataVar = do
 forwardToInflux :: MVar SourceData -> MVar MessageToUser -> IO ()
 forwardToInflux dataVar userNotificationVar = do
     sourceData <- takeMVar dataVar
-    maybeHome  <- getHome (Just $ sourceId sourceData)
-    case maybeHome of
-        (Just home) -> do
-            let maybeOwner = ownerId home
-            case maybeOwner of
-                (Just ownerId) -> do
-                    let userNotifier = notify userNotificationVar ownerId
-                    sinks <- getUserInfluxSinks ownerId
-                    forM_ sinks $ pushToSink sourceData userNotifier
+    let userNotifier = notify userNotificationVar $ sourceOwnerId sourceData
 
-                _ -> errorM loggerName "Received event for home without an id"
-        _ ->
-            errorM loggerName
-                $  "Received event for non-existing home ID "
-                ++ show (sourceId sourceData)
+    sinks <- getUserInfluxSinks $ sourceOwnerId sourceData
+    forM_ sinks $ pushToSink sourceData userNotifier
 
 -- Pushes the given data points to the given Influx sink
 pushToSink :: SourceData -> UserNotifier -> InfluxSink -> IO ()

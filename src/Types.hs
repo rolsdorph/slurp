@@ -101,6 +101,7 @@ data User = User { userId :: String,
 
 data SourceData = SourceData {
     sourceId :: String,
+    sourceOwnerId :: String,
     datakey :: String,
     datapoints :: [DataPoint]
 } deriving Show
@@ -108,6 +109,7 @@ data SourceData = SourceData {
 instance ToJSON SourceData where
     toJSON s = object
         [ "sourceId" .= sourceId s
+        , "ownerId" .= sourceOwnerId s
         , "datakey" .= datakey s
         , "datapoints" .= datapoints s
         ]
@@ -118,6 +120,7 @@ instance FromJSON SourceData where
             $ \d ->
                   SourceData
                       <$> d .:  "sourceId"
+                      <*> d .:  "ownerId"
                       <*> d .:  "datakey"
                       <*> d .:  "datapoints"
 
