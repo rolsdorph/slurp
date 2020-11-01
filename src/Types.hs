@@ -163,9 +163,14 @@ parseIntNumber val = case parseRes of
                           Nothing -> fail "Failed to parse int"
     where parseRes = toBoundedInteger val
 
-data Home = Home { uuid :: Maybe String
-                 , homeDataKey :: Maybe String
-                 , ownerId :: Maybe String
+data Home =
+          PreCreationHome { homeDataKey :: String
+                        , ownerId :: String
+                        , createdAt :: UTCTime
+                        , state :: VerificationState }
+          | Home { uuid :: String
+                 , homeDataKey :: String
+                 , ownerId :: String
                  , createdAt :: UTCTime
                  , state :: VerificationState
                  , oauthState :: Maybe String

@@ -465,19 +465,7 @@ homeFrom currentUser params = do
 
     case maybeKey of
         (Left  err) -> pure $ Left err
-        (Right key) -> pure
-            (Right $ Home Nothing
-                          (Just key)
-                          (Just $ userId currentUser)
-                          currentTime
-                          OAuthPending
-                          Nothing
-                          Nothing
-                          Nothing
-                          Nothing
-                          Nothing
-                          Nothing
-            )
+        (Right key) -> pure (Right $ PreCreationHome key (userId currentUser) currentTime OAuthPending)
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
 influxSinkFrom :: User -> [Param] -> IO (Either L.ByteString InfluxSink)

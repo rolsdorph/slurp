@@ -153,13 +153,10 @@ collectHome :: UserNotifier -> DataQueuePusher -> Home -> IO ()
 collectHome notifyUser notifyDataQueue home = do
     let maybeToken    = accessToken home
     let maybeUsername = hueUsername home
-    let maybeHomeId = uuid home
-    let maybeDatakey = homeDataKey home
-    let maybeOwnerId = ownerId home
-    case (maybeToken, maybeUsername, maybeHomeId, maybeDatakey, maybeOwnerId) of
-        (Just t, Just u, Just homeId, Just d, Just o) -> do
+    case (maybeToken, maybeUsername) of
+        (Just token, Just username) -> do
             -- Get the data
-            lights <- collect hueBridgeApi u (Just t)
+            lights <- collect hueBridgeApi username (Just token)
             infoM loggerName "Collected light data"
 
             -- Notify the user that we've collected it
@@ -167,7 +164,12 @@ collectHome notifyUser notifyDataQueue home = do
             notifyUser homePayload
 
             -- Stick the data on the data queue
-            notifyDataQueue $ SourceData {sourceId = homeId, sourceOwnerId = o, datakey = d, datapoints = map toDataPoint lights}
+            notifyDataQueue $ SourceData { sourceId      = uuid home
+                                         , sourceOwnerId = ownerId home
+                                         , datakey       = homeDataKey home
+                                         , datapoints = map toDataPoint lights
+                                         }
 
             infoM loggerName "Published light data"
-        _ -> warningM loggerName "Invalid home data, can't update home"
+        _ -> warningM loggerName
+                      "Username or token missing, not able to collect home"

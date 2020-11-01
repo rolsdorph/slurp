@@ -66,7 +66,7 @@ updateHome newHome = do
 
 -- Stores a Home in the database
 storeHome :: Home -> IO (Maybe Home)
-storeHome home = do
+storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
     -- Randomness for UUID and state
     uuid        <- show <$> nextRandom
     oauthState  <- show <$> nextRandom
@@ -77,20 +77,32 @@ storeHome home = do
         conn
         ("INSERT INTO "
         ++ homeTableName
-        ++ "(uuid, datakey, ownerId, createdAt, oauthState) \
-                                    \ VALUES (?, ?, ?, ?, ?)"
+        ++ "(uuid, datakey, ownerId, createdAt, oauthState, state) \
+                                    \ VALUES (?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid
-        , toSql $ homeDataKey home
-        , toSql $ ownerId home
-        , toSql $ createdAt home
-        , toSql oauthState
+        , toSql datakey
+        , toSql ownerId
+        , toSql createdAt
+        , toSql $ Just oauthState
+        , toSql verificationState
         ]
     commit conn
     disconnect conn
 
     case numInserted of
-        1 -> return $ Just (home { uuid = Just uuid, oauthState = Just oauthState })
+        1 -> return $ Just $ Home {
+                                    uuid = uuid
+                                  , homeDataKey = datakey
+                                  , ownerId = ownerId
+                                  , createdAt = createdAt
+                                  , state = verificationState
+                                  , oauthState = Just oauthState
+                                  , accessToken = Nothing
+                                  , refreshToken = Nothing
+                                  , accessExpiry = Nothing
+                                  , refreshExpiry = Nothing
+                                  , hueUsername = Nothing}
         _ -> return Nothing
 
 -- Retrieves all Homes for the given ownerId
@@ -142,11 +154,11 @@ parseHomeRow :: [(String, SqlValue)] -> Maybe Home
 parseHomeRow vals =
     Home
         <$> valFrom "uuid" vals
-        <*> pure (valFrom "datakey" vals)
-        <*> pure (valFrom "ownerId" vals)
+        <*> valFrom "datakey" vals
+        <*> valFrom "ownerId" vals
         <*> valFrom "createdAt" vals
         <*> (fromString <$> valFrom "state" vals)
-        <*> pure (valFrom "oauthState" vals)
+        <*> valFrom "oauthState" vals
         <*> pure (valFrom "accessToken" vals)
         <*> pure (valFrom "refreshToken" vals)
         <*> pure (valFrom "accessExpiry" vals)
