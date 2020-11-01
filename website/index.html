@@ -10,6 +10,13 @@
             );
         }
 
+        function extractKeyVals(mappingDivList) {
+            return Array.from(mappingDivList.values()).map(mapping => [
+                mapping.querySelector("input[name=key]").value,
+                mapping.querySelector("input[name=val]").value
+            ]);
+        }
+
         // Performs an authenticated GET to the given URL and renders a
         // stringification of each returned element in the target div
         // (expects the GET to return a JSON list).
@@ -30,6 +37,8 @@
         }
 
         function renderJsonList(target, idPrefix, elements) {
+            target.innerHTML = '';
+
             for (const element of elements) {
                 const domNode = document.createElement("div");
                 domNode.id = idPrefix + element.id;
@@ -40,12 +49,48 @@
 
         function loadHomes() {
             const targetDiv = document.getElementById("homeList");
-            getAndRender(targetDiv, "home-", "/homes");
+            getAndRender(targetDiv, "source-", "/homes");
         }
 
         function loadSinks() {
             const targetDiv = document.getElementById("influxList");
             getAndRender(targetDiv, "sink-", "/sinks");
+        }
+
+        function loadSimpleSources() {
+            const targetDiv = document.getElementById("simpleSourceList");
+            getAndRender(targetDiv, "source-", "/simpleSources");
+        }
+
+        function addSimpleSource(form) {
+            const tagMappingDivs = form.querySelector("#tagMappings").querySelectorAll(".mapping");
+            const fieldMappingDivs = form.querySelector("#fieldMappings").querySelectorAll(".mapping");
+
+            const tagMappings = extractKeyVals(tagMappingDivs);
+            const fieldMappings = extractKeyVals(fieldMappingDivs);
+
+            const XHR = new XMLHttpRequest();
+            XHR.addEventListener("load", function (event) {
+                if (XHR.status === 201) {
+                    loadSimpleSources();
+                } else {
+                    console.error(`Unexpected status code ${XHR.status}`);
+                }
+            });
+
+            XHR.addEventListener("error", function (err) {
+                console.log(err);
+            });
+
+            XHR.responseType = "json";
+            XHR.open("POST", "/simpleSources");
+            addAuth(XHR);
+
+
+            const body = new FormData(form);
+            body.append("tagMappings", JSON.stringify(tagMappings));
+            body.append("fieldMappings", JSON.stringify(fieldMappings));
+            XHR.send(body);
         }
 
         function addHome(form) {
@@ -96,6 +141,25 @@
             XHR.send(new FormData(form));
         }
 
+        function addMapping(container, e) {
+            e.preventDefault();
+            const targetDiv = container.parentElement.querySelector(".mappings");
+
+            const keyInput = document.createElement("input");
+            keyInput.type = "text";
+            keyInput.name = "key";
+            const valInput = document.createElement("input");
+            valInput.type = "text";
+            valInput.name = "val";
+
+            const domNode = document.createElement("div");
+            domNode.className = "mapping";
+            domNode.appendChild(keyInput);
+            domNode.appendChild(valInput);
+
+            targetDiv.appendChild(domNode);
+        }
+
         window.addEventListener("load", function () {
             const ws = new WebSocket("wss://ws.rolsdorph.io", []);
             ws.onopen = function (event) {
@@ -109,7 +173,7 @@
 
                 if (data['type'] === 'SourceCollected') {
                     const homeId = data['homeId'];
-                    const homeElem = document.getElementById(`home-${homeId}`);
+                    const homeElem = document.getElementById(`source-${homeId}`);
                     flash(homeElem, "blue");
                 } else if (data['type'] === 'SinkFed') {
                     const influxId = data['influxId'];
@@ -123,7 +187,6 @@
             const sinkForm = document.getElementById("sinkForm");
             sinkForm.addEventListener("submit", function (event) {
                 event.preventDefault();
-
                 addSink(sinkForm);
             });
 
@@ -135,8 +198,15 @@
                     addHome(homeForm);
                 });
 
+            const simpleSourceForm = document.getElementById("simpleSourceForm");
+            simpleSourceForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                addSimpleSource(simpleSourceForm);
+            });
+
             loadHomes();
             loadSinks();
+            loadSimpleSources();
         });
     </script>
 </head>
@@ -158,6 +228,8 @@
         <input type="submit" value="Create sink" />
     </form>
 
+    <hr />
+
     <h2>Add Home</h2>
     <form id="homeForm">
         <label for="datakey">Data key:</label>
@@ -165,8 +237,46 @@
         <input type="submit" value="Add Hue home" id="addHomeButton" />
     </form>
 
+    <hr />
+
+    <h2>Add Simple Source</h2>
+    <form id="simpleSourceForm">
+        <label for="datakey">Data key:</label>
+        <input type="text" name="datakey" id="datakey" /><br />
+        <label for="url">URL:</label>
+        <input type="text" name="url" id="url" /><br />
+        <label for="authHeader">Authorization header:</label>
+        <input type="text" name="authHeader" id="authHeader" /><br />
+        <h3>Tag mappings</h3>
+        <div id="tagMappings">
+            <div class="mappings">
+                <div class="mapping">
+                    <input type="text" name="key" /><input type="text" name="val" />
+                </div>
+            </div>
+            <button onclick="addMapping(this, event)">+</button>
+        </div>
+        <h3>Field mappings</h3>
+        <div id="fieldMappings">
+            <div class="mappings">
+                <div class="mapping">
+                    <input type="text" name="key" /><input type="text" name="val" />
+                </div>
+            </div>
+            <button onclick="addMapping(this, event)">+</button>
+        </div>
+        <br />
+        <br />
+        <input type="submit" value="Add source" />
+    </form>
+
+    <hr />
+
     <h2>Homes</h2>
     <div id="homeList"></div>
+
+    <h2>Simple sources</h2>
+    <div id="simpleSourceList"></div>
 
     <h2>Influxii</h2>
     <div id="influxList"></div>
