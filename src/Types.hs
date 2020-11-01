@@ -232,10 +232,12 @@ data SimpleShallowJsonSource = SimpleShallowJsonSource {
 }
 
 instance ToJSON SimpleShallowJsonSource where
-    toJSON (SimpleShallowJsonSource uuid datakey _ createdAt url _ _ _) =
+    toJSON (SimpleShallowJsonSource uuid datakey _ createdAt url _ tagMappings fieldMappings) =
         object
             [ "id" .= uuid
             , "datakey" .= datakey
             , "createdAt" .= createdAt
             , "url" .= url
+            , "tagMappings" .= tagMappings
+            , "fieldMappings" .= fieldMappings
             ]
