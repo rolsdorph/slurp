@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GenericJson where
+module SimpleSource where
 
 import           Control.Monad
 import           Control.Monad.IO.Class
@@ -62,6 +62,7 @@ extract logger definition value = do
     case maybeSourceId of
         (Just sourceId) -> pure $ Right (SourceData {
                                                 sourceId   = sourceId,
+                                                sourceOwnerId = shallowOwnerId definition,
                                                 datakey    = genericDataKey definition,
                                                 datapoints = [dp]
                                   })

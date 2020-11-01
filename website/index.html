@@ -114,10 +114,17 @@
             XHR.send(new FormData(form));
         }
 
+        let currentlyFlashing = []; // We'll find a cool way to indicate super rapid events later :)
         function flash(elem, color) {
-            const oldColor = elem.style.backgroundColor;
-            elem.style.backgroundColor = color;
-            setTimeout(() => elem.style.backgroundColor = oldColor, 500);
+            if (!currentlyFlashing.includes(elem)) {
+                currentlyFlashing.push(elem);
+                const oldColor = elem.style.backgroundColor;
+                elem.style.backgroundColor = color;
+                setTimeout(() => {
+                    currentlyFlashing = currentlyFlashing.filter(e => e != elem);
+                    elem.style.backgroundColor = oldColor;
+                }, 500);
+            }
         }
 
         function addSink(form) {
@@ -172,9 +179,9 @@
                 const data = JSON.parse(event.data);
 
                 if (data['type'] === 'SourceCollected') {
-                    const homeId = data['homeId'];
-                    const homeElem = document.getElementById(`source-${homeId}`);
-                    flash(homeElem, "blue");
+                    const sourceId = data['sourceId'];
+                    const sourceElem = document.getElementById(`source-${sourceId}`);
+                    flash(sourceElem, "blue");
                 } else if (data['type'] === 'SinkFed') {
                     const influxId = data['influxId'];
                     const influxElem = document.getElementById(`sink-${influxId}`);

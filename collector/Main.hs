@@ -18,12 +18,14 @@ import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
+import           SimpleSourceDB
 import           HomeDB
 import           UserDB
 import           Collector
 import           Secrets
 import           Types
 import           UserNotification
+import qualified SimpleSource as SS
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
@@ -73,10 +75,42 @@ publishAll notificationVar dataVar = forever $ do
     users <- getAllUsers
 
     forM_ users $ publishForUser notificationVar dataVar
+    forM_ users $ publishSSForUser notificationVar dataVar
 
     infoM loggerName "All done, soon looping again!"
 
     threadDelay (1000 * 1000 * 10) -- 10s
+
+-- Publishes data from all user simple sources to the data queue
+publishSSForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
+publishSSForUser notificationVar dataVar user = do
+    sources <- getUserSimpleSources $ userId user
+
+    let userNotifyer = notify notificationVar $ userId user
+    let dataQueuePusher = putMVar dataVar
+
+    infoM loggerName "Collecting simple sources..."
+    forM_ sources (collectSimpleSource userNotifyer dataQueuePusher)
+
+    infoM loggerName "Collected simple sources!"
+
+collectSimpleSource
+    :: UserNotifier -> DataQueuePusher -> SimpleShallowJsonSource -> IO ()
+collectSimpleSource notifyUser notifyDataQueue source = do
+    sourceData <- SS.collect (errorM loggerName) source
+
+    case sourceData of
+         (Left err) -> errorM loggerName $ "Failed to collect data: " <> err
+         (Right sd) -> do
+            -- Notify the user that we've collected it
+            sourcePayload <- buildSimpleSourcePayload source
+            notifyUser sourcePayload
+
+            -- Stick the data on the data queue
+            notifyDataQueue sd
+
+            infoM loggerName "Published simple data"
+
 
 -- Publishes data from all user homes to the data queue
 publishForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
@@ -99,7 +133,17 @@ buildHomePayload home = do
         $ object
               [ "type" .= ("SourceCollected" :: String)
               , "time" .= curTime
-              , "homeId" .= uuid home
+              , "sourceId" .= uuid home
+              ]
+
+buildSimpleSourcePayload :: SimpleShallowJsonSource -> IO Value
+buildSimpleSourcePayload source = do
+    curTime <- getCurrentTime
+    pure
+        $ object
+              [ "type" .= ("SourceCollected" :: String)
+              , "time" .= curTime
+              , "sourceId" .= genericSourceId source
               ]
 
 type DataQueuePusher = SourceData -> IO ()

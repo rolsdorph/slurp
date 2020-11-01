@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 72b40552bbfbe440c437b7e637ac5e3c85293d0f61aae4a062de3d391750346d
+-- hash: 5104496c63f05e1da6746c727d3759d702c6579f59a633c0297b8830b1af70c6
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -91,6 +91,7 @@ executable hue-metrics-collector-exe
   main-is: Main.hs
   other-modules:
       Collector
+      SimpleSource
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       collector
@@ -238,55 +239,6 @@ executable notifier-exe
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       notifier
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      HDBC
-    , HDBC-sqlite3
-    , aeson
-    , amqp
-    , async
-    , base >=4.7 && <5
-    , base16-bytestring
-    , bytestring
-    , case-insensitive
-    , containers
-    , convertible
-    , cryptohash-md5
-    , hslogger
-    , hspec
-    , http-client
-    , http-client-tls
-    , http-types
-    , influxdb
-    , jose
-    , lens
-    , minimal-hue-metrics-website
-    , modern-uri
-    , mtl
-    , pcre-light
-    , regex-base
-    , req
-    , scientific
-    , stringsearch
-    , text
-    , time
-    , unordered-containers
-    , utf8-string
-    , uuid
-    , vector
-    , wai
-    , wai-extra
-    , warp
-    , websockets
-  default-language: Haskell2010
-
-executable simple-json-collector-exe
-  main-is: Main.hs
-  other-modules:
-      GenericJson
-      Paths_minimal_hue_metrics_website
-  hs-source-dirs:
-      simple-json-collector
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
