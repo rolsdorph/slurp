@@ -1,15 +1,30 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, br, button, div, form, h1, input, label, text)
-import Html.Attributes exposing (for, id, name, type_)
+import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
+import Html.Attributes exposing (for, id, name, type_, value)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode exposing (Decoder, bool, field, list, map4, map5, map6, string)
 
 
 type alias Model =
-    { authToken : Maybe String, simpleSources : List SimpleSource, homes : List Home, influxSinks : List InfluxSink }
+    { authToken : Maybe String
+    , simpleSources : List SimpleSource
+    , homes : List Home
+    , influxSinks : List InfluxSink
+    , tagMappings : List Mapping
+    , fieldMappings : List Mapping
+    }
+
+
+type alias Mapping =
+    { key : String, value : String }
+
+
+emptyMapping : Mapping
+emptyMapping =
+    { key = "", value = "" }
 
 
 type alias Home =
@@ -31,7 +46,13 @@ main =
 
 initialState : Model
 initialState =
-    { authToken = Nothing, simpleSources = [], homes = [], influxSinks = [] }
+    { authToken = Nothing
+    , simpleSources = []
+    , homes = []
+    , influxSinks = []
+    , tagMappings = []
+    , fieldMappings = []
+    }
 
 
 init : Maybe String -> ( Model, Cmd Msg )
@@ -50,6 +71,8 @@ type Msg
     = GotHomes (Result Http.Error (List Home))
     | GotInfluxSinks (Result Http.Error (List InfluxSink))
     | GotSimpleSources (Result Http.Error (List SimpleSource))
+    | AddTagMapping
+    | AddFieldMapping
 
 
 getHomes : String -> Cmd Msg
@@ -118,6 +141,12 @@ update msg old =
                 Err _ ->
                     ( old, Cmd.none )
 
+        AddTagMapping ->
+            ( { old | tagMappings = emptyMapping :: old.tagMappings }, Cmd.none )
+
+        AddFieldMapping ->
+            ( { old | fieldMappings = emptyMapping :: old.fieldMappings }, Cmd.none )
+
 
 addSinkForm : Html Msg
 addSinkForm =
@@ -138,6 +167,9 @@ addSinkForm =
             , br [] []
             , label [ for "Influx password:" ] [ text "Influx password:" ]
             , input [ type_ "password", name "influxPassword", id "influxPassword" ] []
+            , br [] []
+            , br [] []
+            , input [type_ "submit", value "Add"] []
             ]
         ]
 
@@ -149,6 +181,36 @@ addHomeForm =
         , form [ id "homeForm" ]
             [ label [ for "datakey" ] [ text "Data key" ]
             , input [ type_ "text", name "datakey", id "datakey" ] []
+            , br [] []
+            , br [] []
+            , input [type_ "submit", value "Add"] []
+            ]
+        ]
+
+
+addSimpleSourceForm : Model -> Html Msg
+addSimpleSourceForm model =
+    div []
+        [ h1 [] [ text "Add Simple Source" ]
+        , form [ id "simpleSourcxeForm" ]
+            [ label [ for "datakey" ] [ text "Data key" ]
+            , input [ type_ "text", name "datakey", id "datakey" ] []
+            , br [] []
+            , label [ for "url" ] [ text "URL" ]
+            , input [ type_ "text", name "url", id "url" ] []
+            , br [] []
+            , label [ for "authHeader" ] [ text "Auth header" ]
+            , input [ type_ "text", name "authHeader", id "authHeader" ] []
+            , br [] []
+            , h3 [] [ text "Tag mappings" ]
+            , button [type_ "button", onClick AddTagMapping] [text "+"]
+            , viewTagMappings model
+            , h3 [] [ text "Field mappings" ]
+            , button [type_ "button", onClick AddFieldMapping] [text "+"]
+            , viewFieldMappings model
+            , br [] []
+            , br [] []
+            , input [type_ "submit", value "Add"] []
             ]
         ]
 
@@ -161,6 +223,7 @@ view state =
         , div [] (List.map viewSimpleSource state.simpleSources)
         , addSinkForm
         , addHomeForm
+        , addSimpleSourceForm state
         ]
 
 
@@ -177,6 +240,24 @@ viewSink sink =
 viewSimpleSource : SimpleSource -> Html a
 viewSimpleSource source =
     div [] [ text (source.id ++ ", " ++ source.url) ]
+
+
+viewTagMappings : Model -> Html a
+viewTagMappings state =
+    div [] (List.map mapping state.tagMappings)
+
+
+viewFieldMappings : Model -> Html a
+viewFieldMappings state =
+    div [] (List.map mapping state.fieldMappings)
+
+
+mapping : a -> Html b
+mapping _ =
+    div []
+        [ input [ type_ "text", name "key" ] []
+        , input [ type_ "text", name "val" ] []
+        ]
 
 
 subscriptions : Model -> Sub Msg
