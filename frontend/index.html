@@ -1,0 +1,19 @@
+<html>
+    <head>
+        <title>
+            Collector
+        </title>
+        <script type="text/javascript" src="main.js"></script>
+    </head>
+    <body>
+        <div id="app"></div>
+        
+        <script type="text/javascript">
+            var app = Elm.Main.init({
+                node: document.getElementById("app"),
+                flags: localStorage.getItem("authToken")
+            });
+        </script>
+    </body>
+</html>
+

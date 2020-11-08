@@ -60,8 +60,10 @@ app creds keys request respond = do
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"             ) -> pure index
-        ("GET" , "/login"        ) -> pure loginLanding
+        ("GET" , "/"             ) -> pure indexResponse
+        ("GET" , "/remake"       ) -> pure $ staticResponse "../frontend/index.html"
+        ("GET" , "/main.js"       ) -> pure $ staticResponse "../frontend/main.js"
+        ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
@@ -101,17 +103,15 @@ redirectResponse :: String -> Response
 redirectResponse target =
     responseBuilder HTTP.found302 [(HTTP.hLocation, C.pack target)] mempty
 
-index :: Response
-index = responseFile HTTP.status200
+staticResponse :: FilePath -> Response
+staticResponse filePath = responseFile HTTP.status200
                      [("Content-Type", "text/html")]
-                     "index.html"
+                     filePath
                      Nothing
 
-loginLanding :: Response
-loginLanding = responseFile HTTP.status200
-                     [("Content-Type", "text/html")]
-                     "login-landing.html"
-                     Nothing
+indexResponse :: Response
+indexResponse = staticResponse "index.html"
+
 unauthenticated :: Response
 unauthenticated =
     responseLBS HTTP.status401 [("Content-Type", "text/plain")] "Not authenticated >:("
@@ -391,7 +391,7 @@ generateAndSaveUsername creds home = do
             updatedHome <- updateHome newHome
 
             case updatedHome of
-                (Just _) -> return index
+                (Just _) -> return $ indexResponse
                 Nothing  -> return $ err500 "Couldn't store username"
         (Left err) -> return $ err500 ("Failed to extract username: " <> err)
 
