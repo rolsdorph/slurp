@@ -5,7 +5,7 @@ import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
 import Html.Attributes exposing (for, id, name, type_, value)
 import Html.Events exposing (onClick)
 import Http
-import Json.Decode exposing (Decoder, bool, field, list, map4, map5, map6, string)
+import Json.Decode exposing (Decoder, bool, field, int, list, map4, map5, map6, string)
 
 
 type alias Model =
@@ -32,7 +32,7 @@ type alias Home =
 
 
 type alias InfluxSink =
-    { id : String, influxHost : String, influxPort : String, influxTLS : Bool, createdAt : String }
+    { id : String, influxHost : String, influxPort : Int, influxTLS : Bool, createdAt : String }
 
 
 type alias SimpleSource =
@@ -131,6 +131,7 @@ update msg old =
                     ( { old | influxSinks = sinks }, Cmd.none )
 
                 Err _ ->
+                    -- TODO: Handle all of these errors gracefully (or, more gracefully :))
                     ( old, Cmd.none )
 
         GotSimpleSources res ->
@@ -218,8 +219,11 @@ addSimpleSourceForm model =
 view : Model -> Html Msg
 view state =
     div []
-        [ div [] (List.map viewHome state.homes)
+        [ h3 [] [ text "Homes" ]
+        , div [] (List.map viewHome state.homes)
+        , h3 [] [ text "Influx Sinks" ]
         , div [] (List.map viewSink state.influxSinks)
+        , h3 [] [ text "Simple sources" ]
         , div [] (List.map viewSimpleSource state.simpleSources)
         , addSinkForm
         , addHomeForm
@@ -234,7 +238,7 @@ viewHome home =
 
 viewSink : InfluxSink -> Html a
 viewSink sink =
-    div [] [ text (sink.id ++ ", " ++ sink.influxHost) ]
+    div [] [ text (sink.id ++ ", " ++ sink.influxHost ++ ":" ++ String.fromInt sink.influxPort) ]
 
 
 viewSimpleSource : SimpleSource -> Html a
@@ -272,7 +276,7 @@ homeDecoder =
 
 influxSinkDecoder : Decoder InfluxSink
 influxSinkDecoder =
-    map5 InfluxSink (field "id" string) (field "influxHost" string) (field "influxPort" string) (field "influxTLS" bool) (field "createdAt" string)
+    map5 InfluxSink (field "id" string) (field "influxHost" string) (field "influxPort" int) (field "influxTLS" bool) (field "createdAt" string)
 
 
 simpleSourceDecoder : Decoder SimpleSource
