@@ -3,9 +3,10 @@ module Main exposing (..)
 import Browser
 import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
 import Html.Attributes exposing (for, id, name, type_, value)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onCheck, onClick, onInput)
 import Http
 import Json.Decode exposing (Decoder, bool, field, int, list, map4, map5, map6, string)
+import Url
 
 
 type alias Model =
@@ -15,6 +16,11 @@ type alias Model =
     , influxSinks : List InfluxSink
     , tagMappings : List Mapping
     , fieldMappings : List Mapping
+    , influxSinkFormHost : String
+    , influxSinkFormPort : String
+    , influxSinkFormTLS : String
+    , influxSinkFormUsername : String
+    , influxSinkFormPassword : String
     }
 
 
@@ -52,6 +58,11 @@ initialState =
     , influxSinks = []
     , tagMappings = []
     , fieldMappings = []
+    , influxSinkFormHost = ""
+    , influxSinkFormPort = ""
+    , influxSinkFormTLS = "true"
+    , influxSinkFormUsername = ""
+    , influxSinkFormPassword = ""
     }
 
 
@@ -73,6 +84,13 @@ type Msg
     | GotSimpleSources (Result Http.Error (List SimpleSource))
     | AddTagMapping
     | AddFieldMapping
+    | UpdateInfluxHost String
+    | UpdateInfluxPort String
+    | UpdateInfluxTLS Bool
+    | UpdateInfluxUsername String
+    | UpdateInfluxPassword String
+    | AddInfluxSink
+    | PostedInfluxSink (Result Http.Error InfluxSink)
 
 
 getHomes : String -> Cmd Msg
@@ -148,6 +166,73 @@ update msg old =
         AddFieldMapping ->
             ( { old | fieldMappings = emptyMapping :: old.fieldMappings }, Cmd.none )
 
+        UpdateInfluxHost host ->
+            ( { old | influxSinkFormHost = host }, Cmd.none )
+
+        UpdateInfluxPort newPort ->
+            ( { old | influxSinkFormPort = newPort }, Cmd.none )
+
+        UpdateInfluxTLS tls ->
+            if tls == True then
+                ( { old | influxSinkFormTLS = "true" }, Cmd.none )
+
+            else
+                ( { old | influxSinkFormTLS = "false" }, Cmd.none )
+
+        UpdateInfluxUsername username ->
+            ( { old | influxSinkFormUsername = username }, Cmd.none )
+
+        UpdateInfluxPassword password ->
+            ( { old | influxSinkFormPassword = password }, Cmd.none )
+
+        AddInfluxSink ->
+            case old.authToken of
+                Just t ->
+                    ( old, postInfluxSink old t )
+
+                Nothing ->
+                    ( old, Cmd.none )
+
+        PostedInfluxSink res ->
+            case res of
+                Ok newSink ->
+                    ( { old | influxSinks = newSink :: old.influxSinks }, Cmd.none )
+
+                Err _ ->
+                    ( old, Cmd.none )
+
+
+postInfluxSink : Model -> String -> Cmd Msg
+postInfluxSink state token =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
+        , url = "https://hue.rolsdorph.io/sinks"
+        , body = sinkPayload state
+        , expect = Http.expectJson PostedInfluxSink influxSinkDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+sinkPayload : Model -> Http.Body
+sinkPayload state =
+    urlEncode
+        [ ( "influxHost", state.influxSinkFormHost )
+        , ( "influxPort", state.influxSinkFormPort )
+        , ( "influxTLS", state.influxSinkFormTLS )
+        , ( "influxUsername", state.influxSinkFormUsername )
+        , ( "influxPassword", state.influxSinkFormPassword )
+        ]
+        |> Http.stringBody "application/x-www-form-urlencoded"
+
+
+urlEncode : List ( String, String ) -> String
+urlEncode obj =
+    obj
+        |> List.map (\( k, v ) -> Url.percentEncode k ++ "=" ++ Url.percentEncode v)
+        |> String.join "&"
+
 
 addSinkForm : Html Msg
 addSinkForm =
@@ -155,22 +240,22 @@ addSinkForm =
         [ h1 [] [ text "Add Influx Sink" ]
         , form [ id "sinkForm" ]
             [ label [ for "influxHost" ] [ text "Influx host" ]
-            , input [ type_ "text", name "influxHost", id "influxHost" ] []
+            , input [ type_ "text", name "influxHost", id "influxHost", onInput UpdateInfluxHost ] []
             , br [] []
             , label [ for "Influx port:" ] [ text "Influx port:" ]
-            , input [ type_ "text", name "influxPort", id "influxPort" ] []
+            , input [ type_ "text", name "influxPort", id "influxPort", onInput UpdateInfluxPort ] []
             , br [] []
             , label [ for "Use TLS:" ] [ text "Use TLS:" ]
-            , input [ type_ "checkbox", name "influxTLS", id "influxTLS" ] []
+            , input [ type_ "checkbox", name "influxTLS", id "influxTLS", onCheck UpdateInfluxTLS ] []
             , br [] []
             , label [ for "Influx username:" ] [ text "Influx username:" ]
-            , input [ type_ "text", name "influxUsername", id "influxUsername" ] []
+            , input [ type_ "text", name "influxUsername", id "influxUsername", onInput UpdateInfluxUsername ] []
             , br [] []
             , label [ for "Influx password:" ] [ text "Influx password:" ]
-            , input [ type_ "password", name "influxPassword", id "influxPassword" ] []
+            , input [ type_ "password", name "influxPassword", id "influxPassword", onInput UpdateInfluxPassword ] []
             , br [] []
             , br [] []
-            , input [type_ "submit", value "Add"] []
+            , button [ type_ "button", onClick AddInfluxSink ] [ text "Add" ]
             ]
         ]
 
@@ -184,7 +269,7 @@ addHomeForm =
             , input [ type_ "text", name "datakey", id "datakey" ] []
             , br [] []
             , br [] []
-            , input [type_ "submit", value "Add"] []
+            , input [ type_ "submit", value "Add" ] []
             ]
         ]
 
@@ -204,14 +289,14 @@ addSimpleSourceForm model =
             , input [ type_ "text", name "authHeader", id "authHeader" ] []
             , br [] []
             , h3 [] [ text "Tag mappings" ]
-            , button [type_ "button", onClick AddTagMapping] [text "+"]
+            , button [ type_ "button", onClick AddTagMapping ] [ text "+" ]
             , viewTagMappings model
             , h3 [] [ text "Field mappings" ]
-            , button [type_ "button", onClick AddFieldMapping] [text "+"]
+            , button [ type_ "button", onClick AddFieldMapping ] [ text "+" ]
             , viewFieldMappings model
             , br [] []
             , br [] []
-            , input [type_ "submit", value "Add"] []
+            , input [ type_ "submit", value "Add" ] []
             ]
         ]
 
