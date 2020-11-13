@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Browser
+import Browser.Navigation
 import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
 import Html.Attributes exposing (for, id, name, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
@@ -21,6 +22,7 @@ type alias Model =
     , influxSinkFormTLS : String
     , influxSinkFormUsername : String
     , influxSinkFormPassword : String
+    , homeDatakey : String
     }
 
 
@@ -34,7 +36,7 @@ emptyMapping =
 
 
 type alias Home =
-    { id : String, dataKey : String, state : String, createdAt : String }
+    { id : String, datakey : String, state : String, createdAt : String }
 
 
 type alias InfluxSink =
@@ -63,6 +65,7 @@ initialState =
     , influxSinkFormTLS = "true"
     , influxSinkFormUsername = ""
     , influxSinkFormPassword = ""
+    , homeDatakey = ""
     }
 
 
@@ -91,6 +94,9 @@ type Msg
     | UpdateInfluxPassword String
     | AddInfluxSink
     | PostedInfluxSink (Result Http.Error InfluxSink)
+    | UpdateHomeDatakey String
+    | AddHome
+    | PostedHome (Result Http.Error String)
 
 
 getHomes : String -> Cmd Msg
@@ -201,6 +207,25 @@ update msg old =
                 Err _ ->
                     ( old, Cmd.none )
 
+        UpdateHomeDatakey newKey ->
+            ( { old | homeDatakey = newKey }, Cmd.none )
+
+        AddHome ->
+            case old.authToken of
+                Just t ->
+                    ( old, postHome old t )
+
+                Nothing ->
+                    ( old, Cmd.none )
+
+        PostedHome res ->
+            case res of
+                Ok url ->
+                    ( old, Browser.Navigation.load url )
+
+                Err _ ->
+                    ( old, Cmd.none )
+
 
 postInfluxSink : Model -> String -> Cmd Msg
 postInfluxSink state token =
@@ -215,6 +240,19 @@ postInfluxSink state token =
         }
 
 
+postHome : Model -> String -> Cmd Msg
+postHome state token =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
+        , url = "https://hue.rolsdorph.io/homes?redirectUrlInBody=true"
+        , body = homePayload state
+        , expect = Http.expectJson PostedHome string
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 sinkPayload : Model -> Http.Body
 sinkPayload state =
     urlEncode
@@ -224,6 +262,13 @@ sinkPayload state =
         , ( "influxUsername", state.influxSinkFormUsername )
         , ( "influxPassword", state.influxSinkFormPassword )
         ]
+        |> Http.stringBody "application/x-www-form-urlencoded"
+
+
+homePayload : Model -> Http.Body
+homePayload state =
+    urlEncode
+        [ ( "datakey", state.homeDatakey ) ]
         |> Http.stringBody "application/x-www-form-urlencoded"
 
 
@@ -266,10 +311,10 @@ addHomeForm =
         [ h1 [] [ text "Add Philips Hue Home" ]
         , form [ id "homeForm" ]
             [ label [ for "datakey" ] [ text "Data key" ]
-            , input [ type_ "text", name "datakey", id "datakey" ] []
+            , input [ type_ "text", name "datakey", id "datakey", onInput UpdateHomeDatakey ] []
             , br [] []
             , br [] []
-            , input [ type_ "submit", value "Add" ] []
+            , button [ type_ "button", onClick AddHome] [ text "Add" ]
             ]
         ]
 
@@ -318,7 +363,7 @@ view state =
 
 viewHome : Home -> Html a
 viewHome home =
-    div [] [ text (home.id ++ ", " ++ home.dataKey) ]
+    div [] [ text (home.id ++ ", " ++ home.datakey) ]
 
 
 viewSink : InfluxSink -> Html a
