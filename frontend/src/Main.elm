@@ -7,6 +7,7 @@ import Html.Attributes exposing (for, id, name, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Http
 import Json.Decode exposing (Decoder, bool, field, int, list, map4, map5, map6, string)
+import Json.Encode as JE
 import Url
 
 
@@ -14,25 +15,35 @@ type alias Model =
     { authToken : Maybe String
     , simpleSources : List SimpleSource
     , homes : List Home
+
+    -- Sink form
     , influxSinks : List InfluxSink
-    , tagMappings : List Mapping
-    , fieldMappings : List Mapping
     , influxSinkFormHost : String
     , influxSinkFormPort : String
     , influxSinkFormTLS : String
     , influxSinkFormUsername : String
     , influxSinkFormPassword : String
+
+    -- Home form
     , homeDatakey : String
+
+    -- Simple source form
+    , simpleSourceDatakey : String
+    , simpleSourceUrl : String
+    , simpleSourceAuthHeader : String
+    , counter : Int
+    , tagMappings : List Mapping
+    , fieldMappings : List Mapping
     }
 
 
 type alias Mapping =
-    { key : String, value : String }
+    { id : Int, key : String, value : String }
 
 
-emptyMapping : Mapping
-emptyMapping =
-    { key = "", value = "" }
+emptyMapping : Int -> Mapping
+emptyMapping id =
+    { id = id, key = "", value = "" }
 
 
 type alias Home =
@@ -58,14 +69,18 @@ initialState =
     , simpleSources = []
     , homes = []
     , influxSinks = []
-    , tagMappings = []
-    , fieldMappings = []
     , influxSinkFormHost = ""
     , influxSinkFormPort = ""
     , influxSinkFormTLS = "true"
     , influxSinkFormUsername = ""
     , influxSinkFormPassword = ""
     , homeDatakey = ""
+    , simpleSourceDatakey = ""
+    , simpleSourceUrl = ""
+    , simpleSourceAuthHeader = ""
+    , counter = 0
+    , tagMappings = []
+    , fieldMappings = []
     }
 
 
@@ -85,8 +100,7 @@ type Msg
     = GotHomes (Result Http.Error (List Home))
     | GotInfluxSinks (Result Http.Error (List InfluxSink))
     | GotSimpleSources (Result Http.Error (List SimpleSource))
-    | AddTagMapping
-    | AddFieldMapping
+      -- Influx sink form:
     | UpdateInfluxHost String
     | UpdateInfluxPort String
     | UpdateInfluxTLS Bool
@@ -94,9 +108,22 @@ type Msg
     | UpdateInfluxPassword String
     | AddInfluxSink
     | PostedInfluxSink (Result Http.Error InfluxSink)
+      -- Home form:
     | UpdateHomeDatakey String
     | AddHome
     | PostedHome (Result Http.Error String)
+      -- Simple source form:
+    | AddTagMapping
+    | AddFieldMapping
+    | UpdateSimpleSourceDatakey String
+    | UpdateSimpleSourceUrl String
+    | UpdateSimpleSourceAuthHeader String
+    | UpdateTagMappingKey Int String
+    | UpdateTagMappingVal Int String
+    | UpdateFieldMappingKey Int String
+    | UpdateFieldMappingVal Int String
+    | AddSimpleSource
+    | PostedSimpleSource (Result Http.Error SimpleSource)
 
 
 getHomes : String -> Cmd Msg
@@ -167,10 +194,10 @@ update msg old =
                     ( old, Cmd.none )
 
         AddTagMapping ->
-            ( { old | tagMappings = emptyMapping :: old.tagMappings }, Cmd.none )
+            ( { old | tagMappings = emptyMapping old.counter :: old.tagMappings, counter = old.counter + 1 }, Cmd.none )
 
         AddFieldMapping ->
-            ( { old | fieldMappings = emptyMapping :: old.fieldMappings }, Cmd.none )
+            ( { old | fieldMappings = emptyMapping old.counter :: old.fieldMappings, counter = old.counter + 1 }, Cmd.none )
 
         UpdateInfluxHost host ->
             ( { old | influxSinkFormHost = host }, Cmd.none )
@@ -226,6 +253,69 @@ update msg old =
                 Err _ ->
                     ( old, Cmd.none )
 
+        UpdateSimpleSourceDatakey newKey ->
+            ( { old | simpleSourceDatakey = newKey }, Cmd.none )
+
+        UpdateSimpleSourceUrl newUrl ->
+            ( { old | simpleSourceUrl = newUrl }, Cmd.none )
+
+        UpdateSimpleSourceAuthHeader newAuthHeader ->
+            ( { old | simpleSourceAuthHeader = newAuthHeader }, Cmd.none )
+
+        UpdateTagMappingKey mappingId newKey ->
+            ( { old | tagMappings = List.map (replaceKeyIfId mappingId newKey) old.tagMappings }, Cmd.none )
+
+        UpdateTagMappingVal mappingId newVal ->
+            ( { old | tagMappings = List.map (replaceValIfId mappingId newVal) old.tagMappings }, Cmd.none )
+
+        UpdateFieldMappingKey mappingId newKey ->
+            ( { old | fieldMappings = List.map (replaceKeyIfId mappingId newKey) old.fieldMappings }, Cmd.none )
+
+        UpdateFieldMappingVal mappingId newVal ->
+            ( { old | fieldMappings = List.map (replaceValIfId mappingId newVal) old.fieldMappings }, Cmd.none )
+
+        AddSimpleSource ->
+            case old.authToken of
+                Just t ->
+                    ( old, postSimpleSource old t )
+
+                Nothing ->
+                    ( old, Cmd.none )
+
+        PostedSimpleSource res ->
+            case res of
+                Ok newSource ->
+                    ( { old | simpleSources = newSource :: old.simpleSources }, Cmd.none )
+
+                Err _ ->
+                    ( old, Cmd.none )
+
+
+replaceKeyIfId : Int -> String -> Mapping -> Mapping
+replaceKeyIfId id newKey oldMapping =
+    let
+        shouldReplace =
+            id == oldMapping.id
+    in
+    if shouldReplace then
+        { oldMapping | key = newKey }
+
+    else
+        oldMapping
+
+
+replaceValIfId : Int -> String -> Mapping -> Mapping
+replaceValIfId id newVal oldMapping =
+    let
+        shouldReplace =
+            id == oldMapping.id
+    in
+    if shouldReplace then
+        { oldMapping | value = newVal }
+
+    else
+        oldMapping
+
 
 postInfluxSink : Model -> String -> Cmd Msg
 postInfluxSink state token =
@@ -253,6 +343,19 @@ postHome state token =
         }
 
 
+postSimpleSource : Model -> String -> Cmd Msg
+postSimpleSource state token =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
+        , url = "https://hue.rolsdorph.io/simpleSources"
+        , body = simpleSourcePayload state
+        , expect = Http.expectJson PostedSimpleSource simpleSourceDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 sinkPayload : Model -> Http.Body
 sinkPayload state =
     urlEncode
@@ -270,6 +373,27 @@ homePayload state =
     urlEncode
         [ ( "datakey", state.homeDatakey ) ]
         |> Http.stringBody "application/x-www-form-urlencoded"
+
+
+simpleSourcePayload : Model -> Http.Body
+simpleSourcePayload state =
+    urlEncode
+        [ ( "datakey", state.simpleSourceDatakey )
+        , ( "url", state.simpleSourceUrl )
+        , ( "authHeader", state.simpleSourceAuthHeader )
+        , ( "tagMappings", jsonify state.tagMappings )
+        , ( "fieldMappings", jsonify state.fieldMappings )
+        ]
+        |> Http.stringBody "application/x-www-form-urlencoded"
+
+
+jsonify : List Mapping -> String
+jsonify mappings =
+    let
+        listified =
+            List.map (\m -> [ m.key, m.value ]) mappings
+    in
+    JE.encode 0 (JE.list (JE.list JE.string) listified)
 
 
 urlEncode : List ( String, String ) -> String
@@ -314,7 +438,7 @@ addHomeForm =
             , input [ type_ "text", name "datakey", id "datakey", onInput UpdateHomeDatakey ] []
             , br [] []
             , br [] []
-            , button [ type_ "button", onClick AddHome] [ text "Add" ]
+            , button [ type_ "button", onClick AddHome ] [ text "Add" ]
             ]
         ]
 
@@ -325,13 +449,13 @@ addSimpleSourceForm model =
         [ h1 [] [ text "Add Simple Source" ]
         , form [ id "simpleSourcxeForm" ]
             [ label [ for "datakey" ] [ text "Data key" ]
-            , input [ type_ "text", name "datakey", id "datakey" ] []
+            , input [ type_ "text", name "datakey", id "datakey", onInput UpdateSimpleSourceDatakey ] []
             , br [] []
             , label [ for "url" ] [ text "URL" ]
-            , input [ type_ "text", name "url", id "url" ] []
+            , input [ type_ "text", name "url", id "url", onInput UpdateSimpleSourceUrl ] []
             , br [] []
             , label [ for "authHeader" ] [ text "Auth header" ]
-            , input [ type_ "text", name "authHeader", id "authHeader" ] []
+            , input [ type_ "text", name "authHeader", id "authHeader", onInput UpdateSimpleSourceAuthHeader ] []
             , br [] []
             , h3 [] [ text "Tag mappings" ]
             , button [ type_ "button", onClick AddTagMapping ] [ text "+" ]
@@ -341,7 +465,7 @@ addSimpleSourceForm model =
             , viewFieldMappings model
             , br [] []
             , br [] []
-            , input [ type_ "submit", value "Add" ] []
+            , button [ type_ "button", onClick AddSimpleSource ] [ text "Add" ]
             ]
         ]
 
@@ -376,21 +500,29 @@ viewSimpleSource source =
     div [] [ text (source.id ++ ", " ++ source.url) ]
 
 
-viewTagMappings : Model -> Html a
+viewTagMappings : Model -> Html Msg
 viewTagMappings state =
-    div [] (List.map mapping state.tagMappings)
+    div [] (List.map tagMapping state.tagMappings)
 
 
-viewFieldMappings : Model -> Html a
+viewFieldMappings : Model -> Html Msg
 viewFieldMappings state =
-    div [] (List.map mapping state.fieldMappings)
+    div [] (List.map fieldMapping state.fieldMappings)
 
 
-mapping : a -> Html b
-mapping _ =
+tagMapping : Mapping -> Html Msg
+tagMapping m =
     div []
-        [ input [ type_ "text", name "key" ] []
-        , input [ type_ "text", name "val" ] []
+        [ input [ type_ "text", name ("tagkey-" ++ String.fromInt m.id), onInput (UpdateTagMappingKey m.id), value m.key ] []
+        , input [ type_ "text", name ("tagval-" ++ String.fromInt m.id), onInput (UpdateTagMappingVal m.id), value m.value ] []
+        ]
+
+
+fieldMapping : Mapping -> Html Msg
+fieldMapping m =
+    div []
+        [ input [ type_ "text", name ("fieldkey-" ++ String.fromInt m.id), onInput (UpdateFieldMappingKey m.id), value m.key ] []
+        , input [ type_ "text", name ("fieldval-" ++ String.fromInt m.id), onInput (UpdateFieldMappingVal m.id), value m.value ] []
         ]
 
 
