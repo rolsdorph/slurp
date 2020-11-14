@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Browser
 import Browser.Navigation
 import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
-import Html.Attributes exposing (for, id, name, type_, value)
+import Html.Attributes exposing (for, id, name, type_, value, checked)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Http
 import Json.Decode exposing (Decoder, andThen, bool, fail, field, int, list, map, map3, map4, map5, map6, string)
@@ -15,9 +15,9 @@ type alias Model =
     { authToken : Maybe String
     , simpleSources : List SimpleSource
     , homes : List Home
+    , influxSinks : List InfluxSink
 
     -- Sink form
-    , influxSinks : List InfluxSink
     , influxSinkFormHost : String
     , influxSinkFormPort : String
     , influxSinkFormTLS : String
@@ -35,6 +35,16 @@ type alias Model =
     , tagMappings : List Mapping
     , fieldMappings : List Mapping
     }
+
+
+clearSinkForm : Model -> Model
+clearSinkForm old =
+    { old | influxSinkFormHost = "", influxSinkFormPort = "", influxSinkFormTLS = "", influxSinkFormUsername = "", influxSinkFormPassword = "" }
+
+
+clearSimpleSourceForm : Model -> Model
+clearSimpleSourceForm old =
+    { old | simpleSourceDatakey = "", simpleSourceUrl = "", simpleSourceAuthHeader = "", counter = 0, tagMappings = [], fieldMappings = [] }
 
 
 type alias Mapping =
@@ -234,7 +244,7 @@ update msg old =
         PostedInfluxSink res ->
             case res of
                 Ok newSink ->
-                    ( { old | influxSinks = newSink :: old.influxSinks }, Cmd.none )
+                    ( clearSinkForm ({ old | influxSinks = newSink :: old.influxSinks }), Cmd.none )
 
                 Err _ ->
                     ( old, Cmd.none )
@@ -290,7 +300,7 @@ update msg old =
         PostedSimpleSource res ->
             case res of
                 Ok newSource ->
-                    ( { old | simpleSources = newSource :: old.simpleSources }, Cmd.none )
+                    ( clearSimpleSourceForm { old | simpleSources = newSource :: old.simpleSources }, Cmd.none )
 
                 Err _ ->
                     ( old, Cmd.none )
@@ -414,25 +424,25 @@ urlEncode obj =
         |> String.join "&"
 
 
-addSinkForm : Html Msg
-addSinkForm =
+addSinkForm : Model -> Html Msg
+addSinkForm state =
     div []
         [ h1 [] [ text "Add Influx Sink" ]
         , form [ id "sinkForm" ]
             [ label [ for "influxHost" ] [ text "Influx host" ]
-            , input [ type_ "text", name "influxHost", id "influxHost", onInput UpdateInfluxHost ] []
+            , input [ type_ "text", name "influxHost", id "influxHost", value state.influxSinkFormHost, onInput UpdateInfluxHost ] []
             , br [] []
             , label [ for "Influx port:" ] [ text "Influx port:" ]
-            , input [ type_ "text", name "influxPort", id "influxPort", onInput UpdateInfluxPort ] []
+            , input [ type_ "text", name "influxPort", id "influxPort", value state.influxSinkFormPort, onInput UpdateInfluxPort ] []
             , br [] []
             , label [ for "Use TLS:" ] [ text "Use TLS:" ]
-            , input [ type_ "checkbox", name "influxTLS", id "influxTLS", onCheck UpdateInfluxTLS ] []
+            , input [ type_ "checkbox", name "influxTLS", id "influxTLS", checked (state.influxSinkFormTLS == "true"), onCheck UpdateInfluxTLS ] []
             , br [] []
             , label [ for "Influx username:" ] [ text "Influx username:" ]
-            , input [ type_ "text", name "influxUsername", id "influxUsername", onInput UpdateInfluxUsername ] []
+            , input [ type_ "text", name "influxUsername", id "influxUsername", value state.influxSinkFormUsername, onInput UpdateInfluxUsername ] []
             , br [] []
             , label [ for "Influx password:" ] [ text "Influx password:" ]
-            , input [ type_ "password", name "influxPassword", id "influxPassword", onInput UpdateInfluxPassword ] []
+            , input [ type_ "password", name "influxPassword", id "influxPassword", value state.influxSinkFormPassword, onInput UpdateInfluxPassword ] []
             , br [] []
             , br [] []
             , button [ type_ "button", onClick AddInfluxSink ] [ text "Add" ]
@@ -455,25 +465,25 @@ addHomeForm =
 
 
 addSimpleSourceForm : Model -> Html Msg
-addSimpleSourceForm model =
+addSimpleSourceForm state =
     div []
         [ h1 [] [ text "Add Simple Source" ]
         , form [ id "simpleSourcxeForm" ]
             [ label [ for "datakey" ] [ text "Data key" ]
-            , input [ type_ "text", name "datakey", id "datakey", onInput UpdateSimpleSourceDatakey ] []
+            , input [ type_ "text", name "datakey", id "datakey", value state.simpleSourceDatakey, onInput UpdateSimpleSourceDatakey ] []
             , br [] []
             , label [ for "url" ] [ text "URL" ]
-            , input [ type_ "text", name "url", id "url", onInput UpdateSimpleSourceUrl ] []
+            , input [ type_ "text", name "url", id "url", value state.simpleSourceUrl, onInput UpdateSimpleSourceUrl ] []
             , br [] []
             , label [ for "authHeader" ] [ text "Auth header" ]
-            , input [ type_ "text", name "authHeader", id "authHeader", onInput UpdateSimpleSourceAuthHeader ] []
+            , input [ type_ "text", name "authHeader", id "authHeader", value state.simpleSourceAuthHeader, onInput UpdateSimpleSourceAuthHeader ] []
             , br [] []
             , h3 [] [ text "Tag mappings" ]
             , button [ type_ "button", onClick AddTagMapping ] [ text "+" ]
-            , viewTagMappings model
+            , viewTagMappings state
             , h3 [] [ text "Field mappings" ]
             , button [ type_ "button", onClick AddFieldMapping ] [ text "+" ]
-            , viewFieldMappings model
+            , viewFieldMappings state
             , br [] []
             , br [] []
             , button [ type_ "button", onClick AddSimpleSource ] [ text "Add" ]
@@ -490,7 +500,7 @@ view state =
         , div [] (List.map viewSink state.influxSinks)
         , h3 [] [ text "Simple sources" ]
         , div [] (List.map viewSimpleSource state.simpleSources)
-        , addSinkForm
+        , addSinkForm state
         , addHomeForm
         , addSimpleSourceForm state
         ]
