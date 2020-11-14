@@ -183,9 +183,9 @@
                     const sourceElem = document.getElementById(`source-${sourceId}`);
                     flash(sourceElem, "blue");
                 } else if (data['type'] === 'SinkFed') {
-                    const influxId = data['influxId'];
-                    const influxElem = document.getElementById(`sink-${influxId}`);
-                    flash(influxElem, "green");
+                    const sinkId = data['sinkId'];
+                    const sinkElem = document.getElementById(`sink-${sinkId}`);
+                    flash(sinkElem, "green");
                 } else {
                     console.error(`Unknown event type: ${data['type']}`);
                 }

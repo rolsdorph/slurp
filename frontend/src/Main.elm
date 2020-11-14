@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Browser
 import Browser.Navigation
@@ -6,7 +6,7 @@ import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
 import Html.Attributes exposing (for, id, name, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Http
-import Json.Decode exposing (Decoder, bool, field, int, list, map4, map5, map6, string)
+import Json.Decode exposing (Decoder, andThen, bool, fail, field, int, list, map, map3, map4, map5, map6, string)
 import Json.Encode as JE
 import Url
 
@@ -63,6 +63,9 @@ main =
     Browser.element { init = init, update = update, view = view, subscriptions = subscriptions }
 
 
+port wsReceiver : (JE.Value -> msg) -> Sub msg
+
+
 initialState : Model
 initialState =
     { authToken = Nothing
@@ -100,6 +103,8 @@ type Msg
     = GotHomes (Result Http.Error (List Home))
     | GotInfluxSinks (Result Http.Error (List InfluxSink))
     | GotSimpleSources (Result Http.Error (List SimpleSource))
+    | ValidWsMessageReceived WsMsg
+    | InvalidWsMessageReceived String
       -- Influx sink form:
     | UpdateInfluxHost String
     | UpdateInfluxPort String
@@ -289,6 +294,12 @@ update msg old =
 
                 Err _ ->
                     ( old, Cmd.none )
+
+        ValidWsMessageReceived a ->
+            ( old, Cmd.none )
+
+        InvalidWsMessageReceived err ->
+            ( old, Cmd.none )
 
 
 replaceKeyIfId : Int -> String -> Mapping -> Mapping
@@ -528,7 +539,58 @@ fieldMapping m =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    wsReceiver handleWsMessage
+
+
+handleWsMessage : JE.Value -> Msg
+handleWsMessage val =
+    case Json.Decode.decodeValue wsMsgDecoder val of
+        Ok res ->
+            ValidWsMessageReceived res
+
+        Err err ->
+            InvalidWsMessageReceived (Json.Decode.errorToString err)
+
+
+type alias WsMsgType =
+    String
+
+
+type alias WsMsgTime =
+    String
+
+
+type alias WsMsgSourceId =
+    String
+
+
+type alias WsMsgSinkId =
+    String
+
+
+type WsMsg
+    = SourceCollectedMsg WsMsgTime WsMsgType WsMsgSourceId
+    | SinkFedMsg WsMsgTime WsMsgType WsMsgSinkId
+    | UnknownMessage
+
+
+wsMsgDecoder : Decoder WsMsg
+wsMsgDecoder =
+    field "type" string
+        |> andThen (\t -> parseWsMsg t)
+
+
+parseWsMsg : String -> Decoder WsMsg
+parseWsMsg msgType =
+    case msgType of
+        "SourceCollected" ->
+            map3 SourceCollectedMsg (field "time" string) (field "type" string) (field "sourceId" string)
+
+        "SinkFed" ->
+            map3 SinkFedMsg (field "time" string) (field "type" string) (field "sinkId" string)
+
+        _ ->
+            fail ("Unknown msgType: " ++ msgType)
 
 
 homeDecoder : Decoder Home

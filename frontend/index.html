@@ -1,19 +1,32 @@
 <html>
-    <head>
-        <title>
-            Collector
-        </title>
-        <script type="text/javascript" src="main.js"></script>
-    </head>
-    <body>
-        <div id="app"></div>
-        
-        <script type="text/javascript">
-            var app = Elm.Main.init({
-                node: document.getElementById("app"),
-                flags: localStorage.getItem("authToken")
-            });
-        </script>
-    </body>
-</html>
 
+<head>
+    <title>
+        Collector
+    </title>
+    <script type="text/javascript" src="main.js"></script>
+</head>
+
+<body>
+    <div id="app"></div>
+
+    <script type="text/javascript">
+        var app = Elm.Main.init({
+            node: document.getElementById("app"),
+            flags: localStorage.getItem("authToken")
+        });
+
+        const ws = new WebSocket("wss://ws.rolsdorph.io", []);
+        ws.onopen = function (event) {
+            console.log("WebSocket connected, authenticating");
+            ws.send(localStorage.getItem('authToken'));
+        };
+
+        ws.onmessage = function (event) {
+            app.ports.wsReceiver.send(JSON.parse(event.data));
+        }
+
+    </script>
+</body>
+
+</html>

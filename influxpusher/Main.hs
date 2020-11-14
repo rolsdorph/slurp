@@ -119,5 +119,5 @@ buildSinkPayload sink = do
     pure $ object
         [ "type" .= ("SinkFed" :: String)
         , "time" .= curTime
-        , "influxId" .= influxUuid sink
+        , "sinkId" .= influxUuid sink
         ]
