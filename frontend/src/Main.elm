@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Browser
 import Browser.Navigation
 import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
-import Html.Attributes exposing (for, id, name, type_, value, checked)
+import Html.Attributes exposing (checked, class, for, id, name, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
 import Http
 import Json.Decode exposing (Decoder, andThen, bool, fail, field, int, list, map, map3, map4, map5, map6, string)
@@ -244,7 +244,7 @@ update msg old =
         PostedInfluxSink res ->
             case res of
                 Ok newSink ->
-                    ( clearSinkForm ({ old | influxSinks = newSink :: old.influxSinks }), Cmd.none )
+                    ( clearSinkForm { old | influxSinks = newSink :: old.influxSinks }, Cmd.none )
 
                 Err _ ->
                     ( old, Cmd.none )
@@ -508,17 +508,17 @@ view state =
 
 viewHome : Home -> Html a
 viewHome home =
-    div [] [ text (home.id ++ ", " ++ home.datakey) ]
+    div [ id ("source-" ++ home.id), class "source" ] [ text (home.id ++ ", " ++ home.datakey) ]
 
 
 viewSink : InfluxSink -> Html a
 viewSink sink =
-    div [] [ text (sink.id ++ ", " ++ sink.influxHost ++ ":" ++ String.fromInt sink.influxPort) ]
+    div [ id ("sink-" ++ sink.id), class "sink" ] [ text (sink.id ++ ", " ++ sink.influxHost ++ ":" ++ String.fromInt sink.influxPort) ]
 
 
 viewSimpleSource : SimpleSource -> Html a
 viewSimpleSource source =
-    div [] [ text (source.id ++ ", " ++ source.url) ]
+    div [ id ("source-" ++ source.id), class "source" ] [ text (source.id ++ ", " ++ source.url) ]
 
 
 viewTagMappings : Model -> Html Msg

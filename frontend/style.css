@@ -1,0 +1,35 @@
+.source.animating{
+    animation-name: source-animation;
+    animation-duration: 1s;
+    animation-timing-function: cubic-bezier(.09,.67,.73,.93);
+}
+
+.sink.animating{
+    animation-name: sink-animation;
+    animation-duration: 1s;
+    animation-timing-function: cubic-bezier(.09,.67,.73,.93);
+}
+
+@keyframes source-animation {
+    from {
+        font-size: 75%;
+        background-color: purple;
+    }
+
+    to {
+        font-size: 100%;
+        background-color: transparent;
+    }
+}
+
+@keyframes sink-animation {
+    from {
+        font-size: 125%;
+        background-color: green;
+    }
+
+    to {
+        font-size: 100%;
+        background-color: transparent;
+    }
+}

@@ -5,6 +5,7 @@
         Collector
     </title>
     <script type="text/javascript" src="main.js"></script>
+    <link rel="stylesheet" href="style.css"></link>
 </head>
 
 <body>
@@ -23,7 +24,25 @@
         };
 
         ws.onmessage = function (event) {
-            app.ports.wsReceiver.send(JSON.parse(event.data));
+            const parsed = JSON.parse(event.data);
+
+            app.ports.wsReceiver.send(parsed);
+
+            let elem = null;
+            if (parsed['type'] === 'SourceCollected') {
+                elem = document.getElementById(`source-${parsed['sourceId']}`);
+            } else if (parsed['type'] === 'SinkFed') {
+                elem = document.getElementById(`sink-${parsed['sinkId']}`);
+            } else {
+                console.error("Invalid type");
+            }
+
+            if (elem != null) {
+                elem.classList.add('animating');
+                elem.addEventListener('animationend', function () {
+                    elem.classList.remove('animating');
+                });
+            }
         }
 
     </script>
