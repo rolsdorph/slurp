@@ -2,6 +2,7 @@ port module Main exposing (..)
 
 import Browser
 import Browser.Navigation
+import DynamicMappings as DM
 import Html exposing (Html, br, button, div, form, h1, h3, input, label, text)
 import Html.Attributes exposing (checked, class, for, id, name, type_, value)
 import Html.Events exposing (onCheck, onClick, onInput)
@@ -31,9 +32,8 @@ type alias Model =
     , simpleSourceDatakey : String
     , simpleSourceUrl : String
     , simpleSourceAuthHeader : String
-    , counter : Int
-    , tagMappings : List Mapping
-    , fieldMappings : List Mapping
+    , tagMappings : DM.DynamicMappings
+    , fieldMappings : DM.DynamicMappings
     }
 
 
@@ -44,16 +44,7 @@ clearSinkForm old =
 
 clearSimpleSourceForm : Model -> Model
 clearSimpleSourceForm old =
-    { old | simpleSourceDatakey = "", simpleSourceUrl = "", simpleSourceAuthHeader = "", counter = 0, tagMappings = [], fieldMappings = [] }
-
-
-type alias Mapping =
-    { id : Int, key : String, value : String }
-
-
-emptyMapping : Int -> Mapping
-emptyMapping id =
-    { id = id, key = "", value = "" }
+    { old | simpleSourceDatakey = "", simpleSourceUrl = "", simpleSourceAuthHeader = "", tagMappings = DM.empty, fieldMappings = DM.empty }
 
 
 type alias Home =
@@ -91,9 +82,8 @@ initialState =
     , simpleSourceDatakey = ""
     , simpleSourceUrl = ""
     , simpleSourceAuthHeader = ""
-    , counter = 0
-    , tagMappings = []
-    , fieldMappings = []
+    , tagMappings = DM.empty
+    , fieldMappings = DM.empty
     }
 
 
@@ -209,10 +199,10 @@ update msg old =
                     ( old, Cmd.none )
 
         AddTagMapping ->
-            ( { old | tagMappings = emptyMapping old.counter :: old.tagMappings, counter = old.counter + 1 }, Cmd.none )
+            ( { old | tagMappings = DM.addMapping old.tagMappings }, Cmd.none )
 
         AddFieldMapping ->
-            ( { old | fieldMappings = emptyMapping old.counter :: old.fieldMappings, counter = old.counter + 1 }, Cmd.none )
+            ( { old | fieldMappings = DM.addMapping old.fieldMappings }, Cmd.none )
 
         UpdateInfluxHost host ->
             ( { old | influxSinkFormHost = host }, Cmd.none )
@@ -278,16 +268,17 @@ update msg old =
             ( { old | simpleSourceAuthHeader = newAuthHeader }, Cmd.none )
 
         UpdateTagMappingKey mappingId newKey ->
-            ( { old | tagMappings = List.map (replaceKeyIfId mappingId newKey) old.tagMappings }, Cmd.none )
+            ( { old | tagMappings = DM.replaceKeyFor mappingId newKey old.tagMappings }, Cmd.none )
 
         UpdateTagMappingVal mappingId newVal ->
-            ( { old | tagMappings = List.map (replaceValIfId mappingId newVal) old.tagMappings }, Cmd.none )
+            ( { old | tagMappings = DM.replaceValFor mappingId newVal old.tagMappings }, Cmd.none )
 
         UpdateFieldMappingKey mappingId newKey ->
-            ( { old | fieldMappings = List.map (replaceKeyIfId mappingId newKey) old.fieldMappings }, Cmd.none )
+            ( { old | fieldMappings = DM.replaceKeyFor mappingId newKey old.fieldMappings }, Cmd.none )
+
 
         UpdateFieldMappingVal mappingId newVal ->
-            ( { old | fieldMappings = List.map (replaceValIfId mappingId newVal) old.fieldMappings }, Cmd.none )
+            ( { old | fieldMappings = DM.replaceValFor mappingId newVal old.fieldMappings }, Cmd.none )
 
         AddSimpleSource ->
             case old.authToken of
@@ -310,32 +301,6 @@ update msg old =
 
         InvalidWsMessageReceived err ->
             ( old, Cmd.none )
-
-
-replaceKeyIfId : Int -> String -> Mapping -> Mapping
-replaceKeyIfId id newKey oldMapping =
-    let
-        shouldReplace =
-            id == oldMapping.id
-    in
-    if shouldReplace then
-        { oldMapping | key = newKey }
-
-    else
-        oldMapping
-
-
-replaceValIfId : Int -> String -> Mapping -> Mapping
-replaceValIfId id newVal oldMapping =
-    let
-        shouldReplace =
-            id == oldMapping.id
-    in
-    if shouldReplace then
-        { oldMapping | value = newVal }
-
-    else
-        oldMapping
 
 
 postInfluxSink : Model -> String -> Cmd Msg
@@ -402,19 +367,10 @@ simpleSourcePayload state =
         [ ( "datakey", state.simpleSourceDatakey )
         , ( "url", state.simpleSourceUrl )
         , ( "authHeader", state.simpleSourceAuthHeader )
-        , ( "tagMappings", jsonify state.tagMappings )
-        , ( "fieldMappings", jsonify state.fieldMappings )
+        , ( "tagMappings", DM.asJson state.tagMappings )
+        , ( "fieldMappings", DM.asJson state.fieldMappings )
         ]
         |> Http.stringBody "application/x-www-form-urlencoded"
-
-
-jsonify : List Mapping -> String
-jsonify mappings =
-    let
-        listified =
-            List.map (\m -> [ m.key, m.value ]) mappings
-    in
-    JE.encode 0 (JE.list (JE.list JE.string) listified)
 
 
 urlEncode : List ( String, String ) -> String
@@ -523,15 +479,15 @@ viewSimpleSource source =
 
 viewTagMappings : Model -> Html Msg
 viewTagMappings state =
-    div [] (List.map tagMapping state.tagMappings)
+    div [] (List.map tagMapping (DM.asMappingList state.tagMappings))
 
 
 viewFieldMappings : Model -> Html Msg
 viewFieldMappings state =
-    div [] (List.map fieldMapping state.fieldMappings)
+    div [] (List.map fieldMapping (DM.asMappingList state.fieldMappings))
 
 
-tagMapping : Mapping -> Html Msg
+tagMapping : DM.Mapping -> Html Msg
 tagMapping m =
     div []
         [ input [ type_ "text", name ("tagkey-" ++ String.fromInt m.id), onInput (UpdateTagMappingKey m.id), value m.key ] []
@@ -539,7 +495,7 @@ tagMapping m =
         ]
 
 
-fieldMapping : Mapping -> Html Msg
+fieldMapping : DM.Mapping -> Html Msg
 fieldMapping m =
     div []
         [ input [ type_ "text", name ("fieldkey-" ++ String.fromInt m.id), onInput (UpdateFieldMappingKey m.id), value m.key ] []
