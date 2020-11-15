@@ -131,43 +131,60 @@ type Msg
     | PostedSimpleSource (Result Http.Error SimpleSource)
 
 
-getHomes : String -> Cmd Msg
-getHomes token =
+authorizedJsonGet : String -> String -> (Result Http.Error a -> msg) -> Decoder a -> Cmd msg
+authorizedJsonGet token url successCmd decoder =
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/homes"
+        , url = url
         , body = Http.emptyBody
-        , expect = Http.expectJson GotHomes (list homeDecoder)
+        , expect = Http.expectJson successCmd decoder
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+authorizedJsonPost : String -> String -> Http.Body -> (Result Http.Error a -> msg) -> Decoder a -> Cmd msg
+authorizedJsonPost token url body successCmd decoder =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
+        , url = url
+        , body = body
+        , expect = Http.expectJson successCmd decoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+postInfluxSink : Model -> String -> Cmd Msg
+postInfluxSink state token =
+    authorizedJsonPost token "https://hue.rolsdorph.io/sinks" (sinkPayload state) PostedInfluxSink influxSinkDecoder
+
+
+postHome : Model -> String -> Cmd Msg
+postHome state token =
+    authorizedJsonPost token "https://hue.rolsdorph.io/homes?redirectUrlInBody=true" (homePayload state) PostedHome string
+
+
+postSimpleSource : Model -> String -> Cmd Msg
+postSimpleSource state token =
+    authorizedJsonPost token "https://hue.rolsdorph.io/simpleSources" (simpleSourcePayload state) PostedSimpleSource simpleSourceDecoder
+
+
+getHomes : String -> Cmd Msg
+getHomes token =
+    authorizedJsonGet token "https://hue.rolsdorph.io/homes" GotHomes (list homeDecoder)
 
 
 getInfluxSinks : String -> Cmd Msg
 getInfluxSinks token =
-    Http.request
-        { method = "GET"
-        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/sinks"
-        , body = Http.emptyBody
-        , expect = Http.expectJson GotInfluxSinks (list influxSinkDecoder)
-        , timeout = Nothing
-        , tracker = Nothing
-        }
+    authorizedJsonGet token "https://hue.rolsdorph.io/sinks" GotInfluxSinks (list influxSinkDecoder)
 
 
 getSimpleSources : String -> Cmd Msg
 getSimpleSources token =
-    Http.request
-        { method = "GET"
-        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/simpleSources"
-        , body = Http.emptyBody
-        , expect = Http.expectJson GotSimpleSources (list simpleSourceDecoder)
-        , timeout = Nothing
-        , tracker = Nothing
-        }
+    authorizedJsonGet token "https://hue.rolsdorph.io/simpleSources" GotSimpleSources (list simpleSourceDecoder)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -276,7 +293,6 @@ update msg old =
         UpdateFieldMappingKey mappingId newKey ->
             ( { old | fieldMappings = DM.replaceKeyFor mappingId newKey old.fieldMappings }, Cmd.none )
 
-
         UpdateFieldMappingVal mappingId newVal ->
             ( { old | fieldMappings = DM.replaceValFor mappingId newVal old.fieldMappings }, Cmd.none )
 
@@ -301,45 +317,6 @@ update msg old =
 
         InvalidWsMessageReceived err ->
             ( old, Cmd.none )
-
-
-postInfluxSink : Model -> String -> Cmd Msg
-postInfluxSink state token =
-    Http.request
-        { method = "POST"
-        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/sinks"
-        , body = sinkPayload state
-        , expect = Http.expectJson PostedInfluxSink influxSinkDecoder
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-postHome : Model -> String -> Cmd Msg
-postHome state token =
-    Http.request
-        { method = "POST"
-        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/homes?redirectUrlInBody=true"
-        , body = homePayload state
-        , expect = Http.expectJson PostedHome string
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-postSimpleSource : Model -> String -> Cmd Msg
-postSimpleSource state token =
-    Http.request
-        { method = "POST"
-        , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = "https://hue.rolsdorph.io/simpleSources"
-        , body = simpleSourcePayload state
-        , expect = Http.expectJson PostedSimpleSource simpleSourceDecoder
-        , timeout = Nothing
-        , tracker = Nothing
-        }
 
 
 sinkPayload : Model -> Http.Body
