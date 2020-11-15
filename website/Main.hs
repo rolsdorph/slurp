@@ -60,10 +60,9 @@ app creds keys request respond = do
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"             ) -> pure indexResponse
-        ("GET" , "/remake"       ) -> pure $ staticResponse "../frontend/index.html"
-        ("GET" , "/main.js"       ) -> pure $ staticResponse "../frontend/main.js"
-        ("GET" , "/style.css"       ) -> pure $ staticResponse "../frontend/style.css"
+        ("GET" , "/"             ) -> pure $ staticResponse "../frontend/index.html"
+        ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
+        ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
