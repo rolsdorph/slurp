@@ -122,3 +122,13 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - minimal-hue-metrics-website
+
+  oauth-test:
+    main:                Spec.hs
+    source-dirs:         test/oauth
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - minimal-hue-metrics-website
