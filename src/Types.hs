@@ -233,10 +233,10 @@ data SimpleShallowJsonSource = SimpleShallowJsonSource {
     genericDataKey :: String,
     shallowOwnerId :: String, -- TODO: Figure out how to properly deal with these conflicts.. are records really the way to go?
     shallowCreatedAt :: UTCTime,
-    url :: T.Text,
-    authHeader :: B.ByteString,
-    tagMappings :: [JsonMapping],
-    fieldMappings :: [JsonMapping]
+    url :: T.Text, -- URL to fetch JSON file from
+    authHeader :: B.ByteString, -- Authorization header value to use for fetching
+    tagMappings :: [JsonMapping], -- Json path => Tag mappings
+    fieldMappings :: [JsonMapping] -- Json path => Field mappings
 }
 
 instance ToJSON SimpleShallowJsonSource where
