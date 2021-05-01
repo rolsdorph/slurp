@@ -27,7 +27,7 @@ createStmt =
         ++ " (\
        \ uuid text NOT NULL, \
        \ createdAt datetime NULL,\
-       \ authType text DEFAULT 'Google',\
+       \ authType text DEFAULT 'Insecure',\
        \ thirdPartyId text NULL)"
 
 setupDb = do

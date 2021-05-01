@@ -81,15 +81,17 @@ fromString s | s == "Verified"  = Verified
              | s == "OAuthPending" = OAuthPending 
              | otherwise       = Unknown
 
-data AuthType = Google | UnknownAuth
+data AuthType = Google | Insecure | UnknownAuth
               deriving Show
 
 instance Convertible AuthType SqlValue where
     safeConvert Google = Right $ toSql ("Google" :: String)
+    safeConvert Insecure = Right $ toSql ("Insecure" :: String)
     safeConvert _        = Right $ toSql ("Unknown" :: String)
 
 authFromString :: String -> AuthType
 authFromString s | s == "Google" = Google
+                 | s == "Insecure" = Insecure
                  | otherwise     = UnknownAuth
 
 data User = User { userId :: String,
