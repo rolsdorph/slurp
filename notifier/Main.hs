@@ -133,10 +133,10 @@ waitForAuth attemptsLeft conn
         msg     <- receiveDataMessage conn
         authRes <- attemptAuth msg
         case authRes of
-            (Just user) -> pure $ Right user
-            _           -> waitForAuth (attemptsLeft - 1) conn
+            (Right user) -> pure $ Right user
+            _            -> waitForAuth (attemptsLeft - 1) conn
 
-attemptAuth :: DataMessage -> IO (Maybe User)
+attemptAuth :: DataMessage -> IO (Either String User)
 attemptAuth (Text token _) = verifyToken token
 
 -- Listens to the given socket, removing it from the connection list upon disconnect

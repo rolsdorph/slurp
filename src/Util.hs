@@ -3,6 +3,7 @@
 
 module Util where
 
+import Data.Either
 import qualified Data.ByteString.Char8         as C
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString.Lazy          as L
@@ -18,6 +19,9 @@ mapRight mapper (Right err) = Right (mapper err)
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft _ (Right x) = Right x
 mapLeft mapper (Left err) = Left (mapper err)
+
+mapEither :: (a -> Either b c) -> [a] -> [c]
+mapEither f xs = rights $ (map f xs)
 
 rightOrNothing :: Either String a -> Maybe a
 rightOrNothing (Right val) = Just val

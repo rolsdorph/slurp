@@ -25,12 +25,12 @@ login uuid = do
         _            -> pure $ Left "Failed to create token"
 
 -- Extracts the user ID associated with the given token
-verifyToken :: L.ByteString -> IO (Maybe User)
+verifyToken :: L.ByteString -> IO (Either String User)
 verifyToken token = do
     maybeUserId <- getTokenUserId token
     case maybeUserId of
         (Just uuid) -> getUser uuid
-        _ -> pure Nothing
+        _ -> pure $ Left "Unknown token"
 
 logoutUser :: String -> IO ()
 logoutUser = deleteUserTokens

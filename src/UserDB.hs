@@ -5,8 +5,8 @@ module UserDB where
 
 import           Types
 import           DBUtil
+import           Util
 
-import           Data.Maybe
 import           Data.Convertible.Base
 import           Data.List
 import           Data.Time.Clock
@@ -36,7 +36,7 @@ setupDb = do
     commit conn
     disconnect conn
 
-getUser :: L.ByteString -> IO (Maybe User)
+getUser :: L.ByteString -> IO (Either String User)
 getUser userId = do
     conn <- connectSqlite3 dbName
     stmt <- prepare conn
@@ -47,7 +47,7 @@ getUser userId = do
 
     case firstHit of
         (Just row) -> return $ parseUserRow row
-        _          -> return Nothing
+        _          -> return $ Left "User not found"
 
 -- Fetches all users
 getAllUsers :: IO [User]
@@ -56,10 +56,10 @@ getAllUsers = do
     stmt  <- prepare conn ("SELECT * FROM " ++ userTableName)
     res   <- execute stmt []
     users <- fetchAllRowsAL stmt
-    pure $ mapMaybe parseUserRow users
+    pure $ mapEither parseUserRow users
 
 -- Fetches the user with the given Google UUID, creating a new user if it doesn't exist
-fetchOrCreateGoogleUser :: L.ByteString -> IO (Maybe User)
+fetchOrCreateGoogleUser :: L.ByteString -> IO (Either String User)
 fetchOrCreateGoogleUser googleId = do
     conn <- connectSqlite3 dbName
     stmt <- prepare
@@ -76,7 +76,7 @@ fetchOrCreateGoogleUser googleId = do
         _          -> createGoogleUser googleId
 
 -- Creates a new user with the given Google UUID
-createGoogleUser :: L.ByteString -> IO (Maybe User)
+createGoogleUser :: L.ByteString -> IO (Either String User)
 createGoogleUser googleId = do
     infoM userDbLoggerName $ "Creating user with Google UUID " ++ show googleId
 
@@ -96,13 +96,11 @@ createGoogleUser googleId = do
     disconnect conn
 
     case numInserted of
-        1 -> pure $ Just newUser
-        _ -> pure Nothing
+        1 -> pure $ Right newUser
+        _ -> pure $ Left "Failed to create user"
 
-parseUserRow :: [(String, SqlValue)] -> Maybe User
+parseUserRow :: [(String, SqlValue)] -> Either String User
 parseUserRow vals =
-    User
-        <$> valFrom "uuid"      vals
-        <*> valFrom "createdAt" vals
-        <*> (authFromString <$> valFrom "authType" vals)
-        <*> pure (valFrom "thirdPartyId" vals)
+    User <$> eitherValFrom "uuid"      vals <*> eitherValFrom "createdAt" vals
+        <*> (authFromString <$> eitherValFrom "authType" vals)
+        <*> eitherValFrom "thirdPartyId" vals

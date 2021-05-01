@@ -56,7 +56,7 @@ app creds keys request respond = do
     let lookupAuth = Auth.verifyToken . extractBearerToken <$> getRequestHeader "Authorization" request
 
     currentUser <- case lookupAuth of
-                        (Just u) -> u
+                        (Just u) -> rightOrNothing <$> u
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
@@ -161,7 +161,7 @@ googleAuth creds keys params = do
         (Right uid) -> do
            maybeUser <- fetchOrCreateGoogleUser uid
            case maybeUser of
-                (Just user) -> loginResponse user
+                (Right user) -> loginResponse user
                 _ -> pure $ err500 "Internal server error: Could not authenticate user"
         (Left err) -> pure $ err500 err
 
