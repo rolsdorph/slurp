@@ -95,7 +95,7 @@ authFromString s | s == "Google" = Google
 data User = User { userId :: String,
                    userCreatedAt :: UTCTime,
                    authType :: AuthType,
-                   googleUuid :: Maybe String }
+                   thirdPartyId :: Maybe String }
     deriving Show
 
 

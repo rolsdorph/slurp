@@ -28,7 +28,7 @@ createStmt =
        \ uuid text NOT NULL, \
        \ createdAt datetime NULL,\
        \ authType text DEFAULT 'Google',\
-       \ googleUuid text NULL)"
+       \ thirdPartyId text NULL)"
 
 setupDb = do
     conn <- connectSqlite3 dbName
@@ -64,7 +64,7 @@ fetchOrCreateGoogleUser googleId = do
     conn <- connectSqlite3 dbName
     stmt <- prepare
         conn
-        ("SELECT * FROM " ++ userTableName ++ " WHERE googleUuid = ?")
+        ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
     numRows  <- execute stmt [toSql googleId]
     firstHit <- fetchRowAL stmt
     disconnect conn
@@ -90,7 +90,7 @@ createGoogleUser googleId = do
         conn
         ("INSERT INTO "
         ++ userTableName
-        ++ "(uuid, createdAt, authType, googleUuid) VALUES (?, ?, ?, ?)")
+        ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Google, toSql googleId]
     commit conn
     disconnect conn
@@ -105,4 +105,4 @@ parseUserRow vals =
         <$> valFrom "uuid"      vals
         <*> valFrom "createdAt" vals
         <*> (authFromString <$> valFrom "authType" vals)
-        <*> pure (valFrom "googleUuid" vals)
+        <*> pure (valFrom "thirdPartyId" vals)
