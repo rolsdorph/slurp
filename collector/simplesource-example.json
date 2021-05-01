@@ -1,0 +1,7 @@
+{
+    "stringKey": "value",
+    "intKey": 123,
+    "doubleKey": 4.2,
+    "trueKey": true,
+    "falseKey": false
+}
