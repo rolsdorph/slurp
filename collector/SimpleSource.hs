@@ -3,6 +3,7 @@
 
 module SimpleSource where
 
+import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Aeson
@@ -17,12 +18,15 @@ import           Text.URI
 import           Types
 import           Util
 
+collectOrError :: IO (Either String SourceData) -> IO (Either String SourceData)
+collectOrError a = catch a (\ex -> (pure . Left) $ "Failed to collect simple source: " ++ show (ex :: HttpException))
+
 -- Extracts the desired tags and fields from the given JSON source
 collect
     :: (String -> IO ())
     -> SimpleShallowJsonSource
     -> IO (Either String SourceData)
-collect logger source = runReq defaultHttpConfig $ do
+collect logger source = collectOrError $ runReq defaultHttpConfig $ do
     let maybeUri = mkURI >=> useHttpsURI $ url source
     case maybeUri of
         (Just (uri, _)) -> do
