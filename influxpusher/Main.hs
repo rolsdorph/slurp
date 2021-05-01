@@ -18,7 +18,7 @@ import           HomeDB
 import           InfluxDB
 import           Secrets
 import           Types
-import           InfluxPublish                  ( publish )
+import qualified InfluxPublish as Influx
 import           UserNotification
 
 loggerName = "InfluxPusher"
@@ -100,17 +100,22 @@ forwardToInflux dataVar userNotificationVar = do
 -- Pushes the given data points to the given Influx sink
 pushToSink :: SourceData -> UserNotifier -> InfluxSink -> IO ()
 pushToSink dataToPublish userNotifier sink = do
-    publish (T.pack $ influxHost sink)
-            (influxPort sink)
-            (T.pack $ influxUsername sink)
-            (T.pack $ influxPassword sink)
-            influxDbName
-            (I.Measurement $ T.pack (datakey dataToPublish))
-            (datapoints dataToPublish)
+  res <-
+    Influx.publish
+      (T.pack $ influxHost sink)
+      (influxPort sink)
+      (T.pack $ influxUsername sink)
+      (T.pack $ influxPassword sink)
+      influxDbName
+      (I.Measurement $ T.pack (datakey dataToPublish))
+      (datapoints dataToPublish)
 
-    sinkPayload <- buildSinkPayload sink
-    userNotifier sinkPayload
-    infoM loggerName "Pushed to a sink"
+  case res of
+    Influx.Success -> do
+      sinkPayload <- buildSinkPayload sink
+      userNotifier sinkPayload
+      infoM loggerName "Pushed to a sink"
+    Influx.Error err -> errorM loggerName $ "Failed to push to sink: " ++ err
 
 -- Builds a user notification event payload for a fetch of the given sink
 buildSinkPayload :: InfluxSink -> IO Value

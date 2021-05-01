@@ -3,9 +3,11 @@
 
 module InfluxPublish
     ( publish
+    , InfluxPushResult (..)
     )
 where
 
+import           Control.Exception
 import           Control.Lens
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text
@@ -17,19 +19,25 @@ import           Database.InfluxDB.Format       ( decimal
                                                 , key
                                                 , string
                                                 )
-import           Network.HTTP.Client.TLS        ( tlsManagerSettings )
+import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Types
 
-import           Types
+data InfluxPushResult = Success | Error String
 
 type InfluxHost = Text
 type Port = Int
 type Username = Text
 type Password = Text
-publish
-    :: InfluxHost -> Port -> Username -> Password -> Database -> Measurement -> [DataPoint] -> IO ()
+
+publish ::
+  InfluxHost -> Port -> Username -> Password -> Database -> Measurement -> [DataPoint] -> IO InfluxPushResult
 publish host port username password db measurement points =
-    writeBatch (mkWriteParams host port username password db)
-        $ map (toLine measurement) points
+  catch
+    ((writeBatch params measurements) >> pure Success)
+    (\ex -> (pure . Error) $ "Failed to push to Influx: " ++ show (ex :: InfluxException))
+  where
+    params = mkWriteParams host port username password db
+    measurements = map (toLine measurement) points
 
 mkWriteParams :: InfluxHost -> Port -> Username -> Password -> Database -> WriteParams
 mkWriteParams hostName port username password db =
