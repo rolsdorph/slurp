@@ -58,6 +58,23 @@ getAllUsers = do
     users <- fetchAllRowsAL stmt
     pure $ mapEither parseUserRow users
 
+-- Fetches the user with the given insecure id, creating a new user if it doesn't exist
+fetchOrCreateInsecureUser :: L.ByteString -> IO (Either String User)
+fetchOrCreateInsecureUser insecureId = do
+    conn <- connectSqlite3 dbName
+    stmt <- prepare
+        conn
+        ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
+    numRows  <- execute stmt [toSql insecureId]
+    firstHit <- fetchRowAL stmt
+    disconnect conn
+
+    case firstHit of
+        (Just row) -> do
+           infoM userDbLoggerName $ "Found user with insecure UUID " ++ show insecureId
+           return $ parseUserRow row
+        _          -> createInsecureUser insecureId
+
 -- Fetches the user with the given Google UUID, creating a new user if it doesn't exist
 fetchOrCreateGoogleUser :: L.ByteString -> IO (Either String User)
 fetchOrCreateGoogleUser googleId = do
@@ -92,6 +109,30 @@ createGoogleUser googleId = do
         ++ userTableName
         ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Google, toSql googleId]
+    commit conn
+    disconnect conn
+
+    case numInserted of
+        1 -> pure $ Right newUser
+        _ -> pure $ Left "Failed to create user"
+
+-- Creates a new user with the given insecure UUID
+createInsecureUser :: L.ByteString -> IO (Either String User)
+createInsecureUser insecureId = do
+    infoM userDbLoggerName $ "Creating user with insecure UUID " ++ show insecureId
+
+    uuid <- show <$> nextRandom
+    now  <- getCurrentTime
+
+    let newUser = User uuid now Insecure (Just $ (C.unpack . L.toStrict) insecureId)
+
+    conn        <- connectSqlite3 dbName
+    numInserted <- run
+        conn
+        ("INSERT INTO "
+        ++ userTableName
+        ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
+        [toSql uuid, toSql now, toSql Insecure, toSql insecureId]
     commit conn
     disconnect conn
 

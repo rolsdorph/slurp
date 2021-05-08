@@ -64,6 +64,7 @@ app creds keys request respond = do
         ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
+        ("POST", "/insecureAuth" ) -> insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
@@ -152,6 +153,17 @@ lookupParamValue name params =
     case find (\p -> fst p == L.toStrict name) params of
         (Just val) -> U.toString <$> snd val
         _          -> Nothing
+
+-- POST /insecureAuth
+insecureAuth :: [Param] -> IO Response
+insecureAuth params = do
+  case (lookupParam "auth" params) of
+    (Left err) -> pure $ badRequest err
+    (Right auth) -> do
+      googleUser <- fetchOrCreateInsecureUser (L.fromStrict $ snd auth)
+      case googleUser of
+        (Right user) -> loginResponse user
+        _ -> pure $ err500 "Internal server error: Could not authenticate user"
 
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> IO Response
