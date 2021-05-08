@@ -84,6 +84,11 @@ fromString s | s == "Verified"  = Verified
 data AuthType = Google | Insecure | UnknownAuth
               deriving Show
 
+instance ToJSON AuthType where
+    toJSON Google = "Google"
+    toJSON Insecure = "Insecure"
+    toJSON _ = "Unknown"
+
 instance Convertible AuthType SqlValue where
     safeConvert Google = Right $ toSql ("Google" :: String)
     safeConvert Insecure = Right $ toSql ("Insecure" :: String)
@@ -100,7 +105,13 @@ data User = User { userId :: String,
                    thirdPartyId :: Maybe String }
     deriving Show
 
-
+instance ToJSON User where
+  toJSON u =
+    object
+      [ "userId" .= userId u,
+        "userCreatedAt" .= userCreatedAt u,
+        "authType" .= authType u
+      ]
 data SourceData = SourceData {
     sourceId :: String,
     sourceOwnerId :: String,

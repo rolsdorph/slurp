@@ -64,6 +64,7 @@ app creds keys request respond = do
         ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
+        ("GET" , "/currentUser"  ) -> showUser currentUser
         ("POST", "/insecureAuth" ) -> insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
@@ -153,6 +154,10 @@ lookupParamValue name params =
     case find (\p -> fst p == L.toStrict name) params of
         (Just val) -> U.toString <$> snd val
         _          -> Nothing
+
+showUser :: Maybe User -> IO Response
+showUser Nothing = pure unauthenticated
+showUser (Just user) = pure $ success200Json user
 
 -- POST /insecureAuth
 insecureAuth :: [Param] -> IO Response
