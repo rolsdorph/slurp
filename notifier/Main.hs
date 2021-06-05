@@ -19,7 +19,7 @@ import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
-import           Auth
+import qualified Auth
 import           Secrets
 import           Types
 
@@ -58,17 +58,20 @@ main = do
 
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
-        (Just queueConfig) -> do
-            infoM loggerName "Listening at 127.0.0.1:8090"
-
-            connections <- newMVar emptyConnectionList
-
-            -- Listen for events to forward
-            forwardEvents connections queueConfig
-
-            -- Listen for WebSocket events
-            runServer "127.0.0.1" 8090 (app connections)
+        (Just queueConfig) -> run queueConfig Auth.verifyToken
         _ -> emergencyM loggerName "Notification queue config not found, refusing to start"
+
+run :: QueueConfig -> Auth.TokenVerifier -> IO ()
+run queueConfig verifyToken = do
+    infoM loggerName "Listening at 127.0.0.1:8090"
+
+    connections <- newMVar emptyConnectionList
+
+    -- Listen for events to forward
+    forwardEvents connections queueConfig
+
+    -- Listen for WebSocket events
+    runServer "127.0.0.1" 8090 (app connections verifyToken)
 
 forwardEvents :: MVar UserConnections -> QueueConfig -> IO ()
 forwardEvents connectionsVar queueConfig = do
@@ -100,13 +103,13 @@ sendToUserId targetUserId connections message = forM_
 userIdConnections :: String -> UserConnections -> UserConnections
 userIdConnections target = List.filter (\u -> userId (user u) == target)
 
-app :: MVar UserConnections -> ServerApp
-app connectionVar pendingConnection = do
+app :: MVar UserConnections -> Auth.TokenVerifier -> ServerApp
+app connectionVar verifyToken pendingConnection = do
     -- Javascript WS API doesn't support specifying headers... we have to accept everything
     connection <- acceptRequest pendingConnection
 
     -- Wait for a valid authentication message from the client
-    authResult <- waitForAuth 3 connection
+    authResult <- waitForAuth 3 connection verifyToken
 
     case authResult of
         (Left  err ) -> infoM loggerName $ "Authentication unsuccessful: " ++ err
@@ -126,18 +129,19 @@ app connectionVar pendingConnection = do
 -- Gives the connection the given number of attempts to send a WebSocket data message that
 -- contains a valid auth token
 type AuthAttempts = Int
-waitForAuth :: AuthAttempts -> Connection -> IO (Either String User)
-waitForAuth attemptsLeft conn
+waitForAuth :: AuthAttempts -> Connection -> Auth.TokenVerifier -> IO (Either String User)
+waitForAuth attemptsLeft conn verifyToken
     | attemptsLeft <= 0 = return $ Left "Authentication attempts exhausted"
     | otherwise = do
         msg     <- receiveDataMessage conn
-        authRes <- attemptAuth msg
+        authRes <- attemptAuth verifyToken msg
         case authRes of
             (Right user) -> pure $ Right user
-            _            -> waitForAuth (attemptsLeft - 1) conn
+            _            -> waitForAuth (attemptsLeft - 1) conn verifyToken
 
-attemptAuth :: DataMessage -> IO (Either String User)
-attemptAuth (Text token _) = verifyToken token
+attemptAuth :: Auth.TokenVerifier -> DataMessage -> IO (Either String User)
+attemptAuth verifyToken (Text token _) = verifyToken token
+attemptAuth _ _ = pure $ Left "Unexpected auth payload"
 
 -- Listens to the given socket, removing it from the connection list upon disconnect
 removeOnDisconnect :: MVar UserConnections -> UserConnection -> IO ()
