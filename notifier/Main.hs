@@ -19,16 +19,19 @@ import qualified Auth
 import           Secrets
 import           Types
 
+loggerName :: String
 loggerName = "Notifier"
 
 type ConnId = String
 data UserConnection = UserConnection {
     connId :: ConnId,
     user :: User,
-    connection :: Connection }
+    connection :: WSConnection }
                     deriving Show
 
-instance Show Connection where
+newtype WSConnection = WSConnection { getConnection :: Connection }
+
+instance Show WSConnection where
     show _ = "A Connection"
 
 type UserConnections = [UserConnection]
@@ -76,25 +79,25 @@ forwardEvents connectionsVar queueConfig = do
                              (username queueConfig)
                              (password queueConfig)
     chan <- Q.openChannel conn
-    Q.declareQueue chan $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
+    _ <- Q.declareQueue chan $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
 
-    Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck $ \(msg, envelope) -> do
+    _ <- Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck $ \(msg, _) -> do
         let parsedMsg = eitherDecode $ Q.msgBody msg
         case parsedMsg of
-            (Right (MessageToUser targetUserId payload)) -> do
+            (Right (MessageToUser target payload')) -> do
                 connections <- readMVar connectionsVar
 
-                infoM loggerName $ "Notifying " ++ targetUserId
+                infoM loggerName $ "Notifying " ++ target
 
-                sendToUserId targetUserId connections (encode payload)
+                sendToUserId target connections (encode payload')
             (Left err) -> warningM loggerName $ "Ignoring malformed message " ++ err
 
     return ()
 
-sendToUserId :: String -> UserConnections -> L.ByteString -> IO ()
-sendToUserId targetUserId connections message = forM_
-    (userIdConnections targetUserId connections)
-    (\c -> sendDataMessage (connection c) (Text message Nothing))
+sendToUserId :: UserId -> UserConnections -> L.ByteString -> IO ()
+sendToUserId target connections message = forM_
+    (userIdConnections target connections)
+    (\c -> sendDataMessage (getConnection $ connection c) (Text message Nothing))
 
 userIdConnections :: String -> UserConnections -> UserConnections
 userIdConnections target = List.filter (\u -> userId (user u) == target)
@@ -102,18 +105,18 @@ userIdConnections target = List.filter (\u -> userId (user u) == target)
 app :: MVar UserConnections -> Auth.TokenVerifier -> ServerApp
 app connectionVar verifyToken pendingConnection = do
     -- Javascript WS API doesn't support specifying headers... we have to accept everything
-    connection <- acceptRequest pendingConnection
+    conn <- acceptRequest pendingConnection
 
     -- Wait for a valid authentication message from the client
-    authResult <- waitForAuth 3 connection verifyToken
+    authResult <- waitForAuth 3 conn verifyToken
 
     case authResult of
         (Left  err ) -> infoM loggerName $ "Authentication unsuccessful: " ++ err
-        (Right user) -> do
+        (Right authenticatedUser) -> do
             infoM loggerName "Authentication successful :)"
 
-            connId <- show <$> nextRandom
-            let userConn = UserConnection connId user connection
+            connectionId <- show <$> nextRandom
+            let userConn = UserConnection connectionId authenticatedUser (WSConnection conn)
 
             -- Start tracking the connection
             modifyMVar_ connectionVar
@@ -132,8 +135,8 @@ waitForAuth attemptsLeft conn verifyToken
         msg     <- receiveDataMessage conn
         authRes <- attemptAuth verifyToken msg
         case authRes of
-            (Right user) -> pure $ Right user
-            _            -> waitForAuth (attemptsLeft - 1) conn verifyToken
+            (Right authenticatedUser) -> pure $ Right authenticatedUser
+            _                         -> waitForAuth (attemptsLeft - 1) conn verifyToken
 
 attemptAuth :: Auth.TokenVerifier -> DataMessage -> IO (Either String User)
 attemptAuth verifyToken (Text token _) = verifyToken token
@@ -149,6 +152,5 @@ removeOnDisconnect connectionsVar userConn =
             pure $ removeConnection userConn currentConnections
 
 -- Keeps the connection open until an exception (i.e. a disconnect) occurs
-waitForDisconnect :: Connection -> IO ()
-waitForDisconnect connection = forever $ receiveDataMessage connection
-
+waitForDisconnect :: WSConnection -> IO ()
+waitForDisconnect conn = forever $ receiveDataMessage (getConnection conn)

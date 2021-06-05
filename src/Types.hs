@@ -14,6 +14,7 @@ module Types
     , AuthType(..)
     , authFromString
     , User(..)
+    , UserId
     , SourceData(..)
     , DataPoint(..)
     , DataPointValue(..)
@@ -99,7 +100,9 @@ authFromString s | s == "Google" = Google
                  | s == "Insecure" = Insecure
                  | otherwise     = UnknownAuth
 
-data User = User { userId :: String,
+type UserId = String
+
+data User = User { userId :: UserId,
                    userCreatedAt :: UTCTime,
                    authType :: AuthType,
                    thirdPartyId :: Maybe String }
@@ -224,7 +227,7 @@ instance ToJSON InfluxSink where
             ]
 
 data MessageToUser = MessageToUser {
-    targetUserId :: String,
+    targetUserId :: UserId,
     payload :: Value
 }
 
