@@ -1,0 +1,145 @@
+module Notifier where
+
+import qualified Auth
+import Control.Concurrent.MVar
+import Control.Exception
+import Control.Monad
+import Data.Aeson
+import qualified Data.ByteString.Lazy as L
+import qualified Data.List as List
+import Data.UUID.V4
+import qualified Network.AMQP as Q
+import Network.WebSockets
+import System.Log.Logger (infoM, warningM)
+import Types
+
+loggerName :: String
+loggerName = "Notifier"
+
+type ConnId = String
+
+data UserConnection = UserConnection
+  { connId :: ConnId,
+    user :: User,
+    connection :: WSConnection
+  }
+  deriving (Show)
+
+newtype WSConnection = WSConnection {getConnection :: Connection}
+
+instance Show WSConnection where
+  show _ = "A Connection"
+
+type UserConnections = [UserConnection]
+
+emptyConnectionList :: [UserConnection]
+emptyConnectionList = []
+
+-- Starts tracking a new connection
+addConnection :: UserConnection -> UserConnections -> UserConnections
+addConnection newConnection connections = newConnection : connections
+
+-- Stops tracking a connection
+removeConnection :: UserConnection -> UserConnections -> UserConnections
+removeConnection userConn = List.filter (\c -> connId c /= removeId)
+  where
+    removeId = connId userConn
+
+run :: QueueConfig -> Auth.TokenVerifier -> IO ()
+run queueConfig verifyToken = do
+  infoM loggerName "Listening at 127.0.0.1:8090"
+
+  connections <- newMVar emptyConnectionList
+
+  -- Listen for events to forward
+  forwardEvents connections queueConfig
+
+  -- Listen for WebSocket events
+  runServer "127.0.0.1" 8090 (app connections verifyToken)
+
+forwardEvents :: MVar UserConnections -> QueueConfig -> IO ()
+forwardEvents connectionsVar queueConfig = do
+  conn <-
+    Q.openConnection
+      (hostname queueConfig)
+      (vhost queueConfig)
+      (username queueConfig)
+      (password queueConfig)
+  chan <- Q.openChannel conn
+  _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = notiQueueName queueConfig}
+
+  _ <- Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck $ \(msg, _) -> do
+    let parsedMsg = eitherDecode $ Q.msgBody msg
+    case parsedMsg of
+      (Right (MessageToUser target payload')) -> do
+        connections <- readMVar connectionsVar
+
+        infoM loggerName $ "Notifying " ++ target
+
+        sendToUserId target connections (encode payload')
+      (Left err) -> warningM loggerName $ "Ignoring malformed message " ++ err
+
+  return ()
+
+sendToUserId :: UserId -> UserConnections -> L.ByteString -> IO ()
+sendToUserId target connections message =
+  forM_
+    (userIdConnections target connections)
+    (\c -> sendDataMessage (getConnection $ connection c) (Text message Nothing))
+
+userIdConnections :: String -> UserConnections -> UserConnections
+userIdConnections target = List.filter (\u -> userId (user u) == target)
+
+app :: MVar UserConnections -> Auth.TokenVerifier -> ServerApp
+app connectionVar verifyToken pendingConnection = do
+  -- Javascript WS API doesn't support specifying headers... we have to accept everything
+  conn <- acceptRequest pendingConnection
+
+  -- Wait for a valid authentication message from the client
+  authResult <- waitForAuth 3 conn verifyToken
+
+  case authResult of
+    (Left err) -> infoM loggerName $ "Authentication unsuccessful: " ++ err
+    (Right authenticatedUser) -> do
+      infoM loggerName "Authentication successful :)"
+
+      connectionId <- show <$> nextRandom
+      let userConn = UserConnection connectionId authenticatedUser (WSConnection conn)
+
+      -- Start tracking the connection
+      modifyMVar_ connectionVar $
+        \connections -> pure $ addConnection userConn connections
+
+      -- Listen until disconnect, then remove the connection
+      removeOnDisconnect connectionVar userConn
+
+-- Gives the connection the given number of attempts to send a WebSocket data message that
+-- contains a valid auth token
+type AuthAttempts = Int
+
+waitForAuth :: AuthAttempts -> Connection -> Auth.TokenVerifier -> IO (Either String User)
+waitForAuth attemptsLeft conn verifyToken
+  | attemptsLeft <= 0 = return $ Left "Authentication attempts exhausted"
+  | otherwise = do
+    msg <- receiveDataMessage conn
+    authRes <- attemptAuth verifyToken msg
+    case authRes of
+      (Right authenticatedUser) -> pure $ Right authenticatedUser
+      _ -> waitForAuth (attemptsLeft - 1) conn verifyToken
+
+attemptAuth :: Auth.TokenVerifier -> DataMessage -> IO (Either String User)
+attemptAuth verifyToken (Text token _) = verifyToken token
+attemptAuth _ _ = pure $ Left "Unexpected auth payload"
+
+-- Listens to the given socket, removing it from the connection list upon disconnect
+removeOnDisconnect :: MVar UserConnections -> UserConnection -> IO ()
+removeOnDisconnect connectionsVar userConn =
+  finally (waitForDisconnect (connection userConn)) $ do
+    infoM loggerName "User disconnected"
+
+    modifyMVar_ connectionsVar $ \currentConnections ->
+      pure $ removeConnection userConn currentConnections
+
+-- Keeps the connection open until an exception (i.e. a disconnect) occurs
+waitForDisconnect :: WSConnection -> IO ()
+waitForDisconnect conn = forever $ receiveDataMessage (getConnection conn)
