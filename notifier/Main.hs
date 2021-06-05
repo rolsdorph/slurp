@@ -4,13 +4,9 @@ module Main where
 
 import           Control.Exception
 import           Control.Monad
-import           Control.Concurrent.Async
-import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.MVar
 import           Data.Aeson
-import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
-import qualified Data.CaseInsensitive          as CI
 import qualified Data.List                     as List
 import           Data.UUID.V4
 import qualified Network.AMQP                  as Q
