@@ -8,9 +8,11 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as L
 import qualified Data.List as List
 import Data.UUID.V4
+import GHC.IO.Handle.FD
 import qualified Network.AMQP as Q
 import Network.WebSockets
-import System.Log.Logger (infoM, warningM)
+import System.Log.Handler.Simple
+import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler)
 import Types
 
 loggerName :: String
@@ -45,8 +47,17 @@ removeConnection userConn = List.filter (\c -> connId c /= removeId)
   where
     removeId = connId userConn
 
+configureLogging :: IO ()
+configureLogging = do
+  updateGlobalLogger rootLoggerName removeHandler
+  updateGlobalLogger rootLoggerName $ setLevel DEBUG
+  stdOutHandler <- verboseStreamHandler stdout DEBUG
+  updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+
 run :: QueueConfig -> Auth.TokenVerifier -> IO ()
 run queueConfig verifyToken = do
+  configureLogging
+
   infoM loggerName "Listening at 127.0.0.1:8090"
 
   connections <- newMVar emptyConnectionList
