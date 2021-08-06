@@ -5,3 +5,6 @@
 loadCreds.sh
 loadQueueConfig.sh
 website/resources/certs.json
+.idea/
+*.iml
+out
