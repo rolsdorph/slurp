@@ -1,7 +1,11 @@
 SHELL := /bin/bash
 
+include ../.env
+
+.EXPORT_ALL_VARIABLES:
+
 vimux-run-command:
-	source ../loadQueueConfig.sh && stack run notifier-exe
+	stack run notifier-exe
 vimux-build-command:
 	stack build
 vimux-test-command:
