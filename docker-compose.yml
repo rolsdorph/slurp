@@ -1,0 +1,8 @@
+services:
+    rmq:
+        image: rabbitmq
+        environment:
+            - RABBITMQ_DEFAULT_USER=$rmqUsername
+            - RABBITMQ_DEFAULT_PASS=$rmqPassword
+        ports:
+            - 5672:5672
