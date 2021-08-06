@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Notifier where
 
 import qualified Auth
@@ -110,7 +112,9 @@ app connectionVar verifyToken pendingConnection = do
   authResult <- waitForAuth 3 conn verifyToken
 
   case authResult of
-    (Left err) -> infoM loggerName $ "Authentication unsuccessful: " ++ err
+    (Left err) -> do
+      infoM loggerName $ "Authentication unsuccessful: " ++ err
+      sendClose conn ("Authentication attempts exhausted" :: L.ByteString)
     (Right authenticatedUser) -> do
       infoM loggerName "Authentication successful :)"
 
