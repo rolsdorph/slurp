@@ -56,8 +56,8 @@ configureLogging = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-run :: QueueConfig -> Auth.TokenVerifier -> IO ()
-run queueConfig verifyToken = do
+run :: Auth.TokenVerifier -> ConsumerRegistry -> IO ()
+run verifyToken consumerRegistry = do
   configureLogging
 
   infoM loggerName "Listening at 127.0.0.1:8090"
@@ -65,13 +65,17 @@ run queueConfig verifyToken = do
   connections <- newMVar emptyConnectionList
 
   -- Listen for events to forward
-  forwardEvents connections queueConfig
+  forwardEvents connections consumerRegistry
 
   -- Listen for WebSocket events
   runServer "127.0.0.1" 8090 (app connections verifyToken)
 
-forwardEvents :: MVar UserConnections -> QueueConfig -> IO ()
-forwardEvents connectionsVar queueConfig = do
+type QueueConsumer = (Q.Message, Q.Envelope) -> IO ()
+
+type ConsumerRegistry = QueueConsumer -> IO ()
+
+createConsumerRegistry :: QueueConfig -> IO ConsumerRegistry
+createConsumerRegistry queueConfig = do
   conn <-
     Q.openConnection
       (hostname queueConfig)
@@ -81,7 +85,11 @@ forwardEvents connectionsVar queueConfig = do
   chan <- Q.openChannel conn
   _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = notiQueueName queueConfig}
 
-  _ <- Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck $ \(msg, _) -> do
+  return $ \h -> void (Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck h)
+
+forwardEvents :: MVar UserConnections -> ConsumerRegistry -> IO ()
+forwardEvents connectionsVar registerConsumer = do
+  registerConsumer $ \(msg, _) -> do
     let parsedMsg = eitherDecode $ Q.msgBody msg
     case parsedMsg of
       (Right (MessageToUser target payload')) -> do
@@ -91,8 +99,6 @@ forwardEvents connectionsVar queueConfig = do
 
         sendToUserId target connections (encode payload')
       (Left err) -> warningM loggerName $ "Ignoring malformed message " ++ err
-
-  return ()
 
 sendToUserId :: UserId -> UserConnections -> L.ByteString -> IO ()
 sendToUserId target connections message =
