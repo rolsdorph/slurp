@@ -70,7 +70,7 @@ run verifyToken consumerRegistry = do
   -- Listen for WebSocket events
   runServer "127.0.0.1" 8090 (app connections verifyToken)
 
-type QueueConsumer = (Q.Message, Q.Envelope) -> IO ()
+type QueueConsumer = Q.Message -> IO ()
 
 type ConsumerRegistry = QueueConsumer -> IO ()
 
@@ -85,11 +85,11 @@ createConsumerRegistry queueConfig = do
   chan <- Q.openChannel conn
   _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = notiQueueName queueConfig}
 
-  return $ \h -> void (Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck h)
+  return $ \h -> void (Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck (\(m, _) -> h m))
 
 forwardEvents :: MVar UserConnections -> ConsumerRegistry -> IO ()
 forwardEvents connectionsVar registerConsumer = do
-  registerConsumer $ \(msg, _) -> do
+  registerConsumer $ \msg -> do
     let parsedMsg = eitherDecode $ Q.msgBody msg
     case parsedMsg of
       (Right (MessageToUser target payload')) -> do
