@@ -144,3 +144,4 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - minimal-hue-metrics-website
+      - hspec
