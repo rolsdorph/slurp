@@ -39,8 +39,7 @@ collect logger source = collectOrError $ runReq defaultHttpConfig $ do
             let decoded = eitherDecode (responseBody res)
             case decoded of
                 (Right val) -> do
-                    res <- liftIO $ extract logger source val
-                    pure res
+                    liftIO $ extract logger source val
                 (Left err) -> pure $ Left err
 
         _ -> pure $ Left "Failed to parse collection URL"
