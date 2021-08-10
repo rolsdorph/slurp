@@ -24,6 +24,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
+import           Control.Monad.Except (ExceptT (..), runExceptT)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
 import qualified Network.HTTP.Types            as HTTP
@@ -66,7 +67,7 @@ app creds keys request respond = do
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("GET" , "/currentUser"  ) -> showUser currentUser
         ("POST", "/insecureAuth" ) -> insecureAuth (fst reqBodyParsed)
-        ("POST", "/googleAuth"   ) -> googleAuth creds keys (fst reqBodyParsed)
+        ("POST", "/googleAuth"   ) -> responseOr500 $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
@@ -77,6 +78,12 @@ app creds keys request respond = do
         (_     , _               ) -> pure notFound
 
     respond response
+
+responseOr500 :: ExceptT LB.ByteString IO Response -> IO Response
+responseOr500 eT = mapper <$> runExceptT eT
+  where
+    mapper (Left err) = err500 err
+    mapper (Right res) = res
 
 main :: IO ()
 main = do
@@ -159,35 +166,31 @@ showUser :: Maybe User -> IO Response
 showUser Nothing = pure unauthenticated
 showUser (Just user) = pure $ success200Json user
 
+collapseResponse :: Either Response Response -> Response
+collapseResponse = either id id
+
 -- POST /insecureAuth
 insecureAuth :: [Param] -> IO Response
-insecureAuth params = do
-  case (lookupParam "auth" params) of
-    (Left err) -> pure $ badRequest err
-    (Right auth) -> do
-      googleUser <- fetchOrCreateInsecureUser (L.fromStrict $ snd auth)
-      case googleUser of
-        (Right user) -> loginResponse user
-        _ -> pure $ err500 "Internal server error: Could not authenticate user"
+insecureAuth params = collapseResponse <$> runExceptT loginUser
+  where
+    loginUser = do
+      authParam <- ExceptT . return $ mapLeft badRequest (lookupParam "auth" params)
+      user <- ExceptT $ mapLeft (const (err500 "Internal server error: Could not authenticate user")) <$> fetchOrCreateInsecureUser (L.fromStrict $ snd authParam)
+      ExceptT $ mapLeft err500 <$> loginResponse user
 
 -- POST /googleAuth
-googleAuth :: AppCreds -> JWKSet -> [Param] -> IO Response
+googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT LB.ByteString IO Response
 googleAuth creds keys params = do
-    maybeId <- validateAndGetId creds keys params
-    case maybeId of
-        (Right uid) -> do
-           maybeUser <- fetchOrCreateGoogleUser uid
-           case maybeUser of
-                (Right user) -> loginResponse user
-                _ -> pure $ err500 "Internal server error: Could not authenticate user"
-        (Left err) -> pure $ err500 err
+    uid <- ExceptT $ validateAndGetId creds keys params
+    user <- ExceptT $ mapLeft (const "Internal server error: Could not authenticate user") <$> fetchOrCreateGoogleUser uid
+    ExceptT $ loginResponse user
 
-loginResponse :: User -> IO Response
+loginResponse :: User -> IO (Either LB.ByteString Response)
 loginResponse user = do
     token <- login $ userId user
     case token of
-         (Right t) -> pure $ success200 ((L.fromStrict . C.pack) t)
-         _ -> pure $ err500 "Login error"
+         (Right t) -> return . Right $ success200 ((L.fromStrict . C.pack) t)
+         _ -> return . Left $ "Login error"
 
 validateAndGetId
     :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString L.ByteString)
