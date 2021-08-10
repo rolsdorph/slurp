@@ -181,7 +181,7 @@ insecureAuth params = collapseResponse <$> runExceptT loginUser
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT LB.ByteString IO Response
 googleAuth creds keys params = do
-    uid <- ExceptT $ validateAndGetId creds keys params
+    uid <- validateAndGetId creds keys params
     user <- ExceptT $ mapLeft (const "Internal server error: Could not authenticate user") <$> fetchOrCreateGoogleUser uid
     ExceptT $ loginResponse user
 
@@ -193,18 +193,13 @@ loginResponse user = do
          _ -> return . Left $ "Login error"
 
 validateAndGetId
-    :: AppCreds -> JWKSet -> [Param] -> IO (Either L.ByteString L.ByteString)
+    :: AppCreds -> JWKSet -> [Param] -> ExceptT L.ByteString IO L.ByteString
 validateAndGetId creds keys params = do
-    (Right googleClientId) <- pure $ buildGoogleClientId creds
-    (Right tokenParam    ) <- pure $ lookupParam "idtoken" params
-    (Right token         ) <- pure
-        ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either
-              J.JWTError
-              J.SignedJWT
-        )
-    (Right claims) <- GoogleLogin.verifyToken keys googleClientId token
-    (Right uid   ) <- pure $ extractUserId claims
-    pure $ Right uid
+    clientId <- ExceptT . return $ buildGoogleClientId creds
+    tokenParam <- ExceptT . return $ lookupParam "idtoken" params
+    token <- ExceptT . return $ mapLeft (const "Invalid token") ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
+    claims <- ExceptT $ GoogleLogin.verifyToken keys clientId token
+    ExceptT $ return (extractUserId claims)
 
 buildGoogleClientId :: AppCreds -> Either L.ByteString J.StringOrURI
 buildGoogleClientId creds = do
