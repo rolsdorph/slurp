@@ -178,9 +178,6 @@ showUser :: Maybe User -> IO Response
 showUser Nothing = pure unauthenticated
 showUser (Just user) = pure $ success200Json user
 
-collapseResponse :: Either Response Response -> Response
-collapseResponse = either id id
-
 -- POST /insecureAuth
 insecureAuth :: [Param] -> ExceptT ErrorResponse IO Response
 insecureAuth params = do
