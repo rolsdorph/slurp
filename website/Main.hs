@@ -72,10 +72,10 @@ app creds keys request respond = do
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> renderResponse $ postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
-        ("POST", "/homes"        ) -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
+        ("POST", "/homes"        ) -> renderResponse $ postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET", "/simpleSources" ) -> getSimpleSources currentUser
         ("POST", "/simpleSources") -> renderResponse $ postSimpleSource creds currentUser (fst reqBodyParsed)
-        ("GET" , "/callback"     ) -> hueOauthCallback creds (queryString request)
+        ("GET" , "/callback"     ) -> renderResponse $ hueOauthCallback creds (queryString request)
         (_     , _               ) -> pure notFound
 
     respond response
@@ -163,9 +163,10 @@ success201Json body = responseLBS HTTP.status201
                                   (encode body)
 
 -- Gets the value of the given param
-getParamValue :: L.ByteString -> HTTP.Query -> Either L.ByteString String
-getParamValue name params =
-    justOrErr (name <> " not found in params") (lookupParamValue name params)
+getParamValue :: (MonadError L.ByteString m) => L.ByteString -> HTTP.Query -> m String
+getParamValue name params = case lookupParamValue name params of
+  (Just v) -> return v
+  Nothing  -> throwError (name <> "not found in params")
 
 -- Gets the value of the given param, if present
 lookupParamValue :: L.ByteString -> HTTP.Query -> Maybe String
@@ -253,51 +254,38 @@ postSink _     (Just currentUser) params = do
     return $ success201Json storedSink
 
 -- POST /homes
-postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> IO Response
+postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> ExceptT ErrorResponse IO Response
 postHome _     Nothing            _      _           = pure unauthenticated
 postHome creds (Just currentUser) params queryParams = do
-    home <- homeFrom currentUser params
+    home <- withExceptT BadRequest $ homeFrom currentUser params
 
-    case home of
-        (Left  err        ) -> pure $ badRequest err
-        (Right createdHome) -> do
-            let redirectInBodyQParam =
-                    getParamValue "redirectUrlInBody" queryParams
-            let redirectInBody = case redirectInBodyQParam of
-                    (Right "true") -> True
-                    _              -> False
+    let redirectInBodyQParam =
+            getParamValue "redirectUrlInBody" queryParams
+    let redirectInBody = case redirectInBodyQParam of
+            (Right "true") -> True
+            _              -> False
 
-            infoM loggerName "Storing home..."
-            storeHomeRes <- storeHome createdHome
+    liftIO $ infoM loggerName "Storing home..."
+    storedHome <- withExceptT InternalServerError $ storeHome home
 
-            case storeHomeRes of
-                Just storedHome ->
-                    hueOauthRedirect creds storedHome redirectInBody
-                _ -> return $ err500 "Couldn't complete operation"
+    hueOauthRedirect creds storedHome redirectInBody
 
-hueOauthRedirect :: AppCreds -> Home -> Bool -> IO Response
+hueOauthRedirect :: AppCreds -> Home -> Bool -> ExceptT ErrorResponse IO Response
 hueOauthRedirect creds home redirectInBody = case oauthState home of
     Just state -> do
         let redirectTarget = buildHueOauthRedirect creds state
         if redirectInBody
             then return $ success200Json redirectTarget
             else return $ redirectResponse redirectTarget
-    _ ->
-        return
-            (err500 "Internal Server Error - did not find expected OAuth state")
+    _ -> throwError $ InternalServerError "Internal Server Error - did not find expected OAuth state"
 
 -- GET /callback
-hueOauthCallback :: AppCreds -> HTTP.Query -> IO Response
-hueOauthCallback creds queryParams = case res of
-    Right (stateVal, codeVal) ->
-        hueCallbackResponse creds stateVal (U.fromString codeVal)
-    Left err -> return (badRequest err)
+hueOauthCallback :: AppCreds -> HTTP.Query -> ExceptT ErrorResponse IO Response
+hueOauthCallback creds queryParams = do
+  state <- withExceptT BadRequest $ getParamValue "state" queryParams
+  code  <- withExceptT BadRequest $ getParamValue "code" queryParams
 
-  where
-    state = getParamValue "state" queryParams
-    code  = getParamValue "code" queryParams
-    res   = combineEithers state code
-
+  liftIO $ hueCallbackResponse creds state (U.fromString code)
 
 -- Generates a callback response for the given state and code param
 hueCallbackResponse :: AppCreds -> String -> B.ByteString -> IO Response
@@ -462,14 +450,11 @@ lookupParam paramName params =
         $ find (paramNamed paramName) params
 
 -- Constructs a new Home DTO with the given user as the owner, and the data key from the given params
-homeFrom :: User -> [Param] -> IO (Either LB.ByteString Home)
+homeFrom :: User -> [Param] -> ExceptT LB.ByteString IO Home
 homeFrom currentUser params = do
-    currentTime <- getCurrentTime
-    let maybeKey = mapRight (C.unpack . snd) (lookupParam "datakey" params)
-
-    case maybeKey of
-        (Left  err) -> pure $ Left err
-        (Right key) -> pure (Right $ PreCreationHome key (userId currentUser) currentTime OAuthPending)
+    currentTime <- liftIO getCurrentTime
+    key <- C.unpack . snd <$> lookupParam "datakey" params
+    return $ PreCreationHome key (userId currentUser) currentTime OAuthPending
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
 influxSinkFrom :: User -> [Param] -> ExceptT L.ByteString IO InfluxSink

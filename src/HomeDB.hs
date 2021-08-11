@@ -13,6 +13,7 @@ import           Database.HDBC
 import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
+import Control.Monad.Except (ExceptT, liftIO, throwError)
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 homeTableName = "homes" :: String
@@ -65,45 +66,50 @@ updateHome newHome = do
         _ -> return Nothing
 
 -- Stores a Home in the database
-storeHome :: Home -> IO (Maybe Home)
+storeHome :: Home -> ExceptT L.ByteString IO Home
 storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
-    -- Randomness for UUID and state
-    uuid        <- show <$> nextRandom
-    oauthState  <- show <$> nextRandom
+  -- Randomness for UUID and state
+  uuid <- liftIO $ show <$> nextRandom
+  oauthState <- liftIO $ show <$> nextRandom
 
-    -- Actual insert
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+  -- Actual insert
+  conn <- liftIO $ connectSqlite3 dbName
+  numInserted <-
+    liftIO $
+      run
         conn
-        ("INSERT INTO "
-        ++ homeTableName
-        ++ "(uuid, datakey, ownerId, createdAt, oauthState, state) \
-                                    \ VALUES (?, ?, ?, ?, ?, ?)"
+        ( "INSERT INTO "
+            ++ homeTableName
+            ++ "(uuid, datakey, ownerId, createdAt, oauthState, state) \
+               \ VALUES (?, ?, ?, ?, ?, ?)"
         )
-        [ toSql uuid
-        , toSql datakey
-        , toSql ownerId
-        , toSql createdAt
-        , toSql $ Just oauthState
-        , toSql verificationState
+        [ toSql uuid,
+          toSql datakey,
+          toSql ownerId,
+          toSql createdAt,
+          toSql $ Just oauthState,
+          toSql verificationState
         ]
-    commit conn
-    disconnect conn
+  liftIO $ commit conn
+  liftIO $ disconnect conn
 
-    case numInserted of
-        1 -> return $ Just $ Home {
-                                    uuid = uuid
-                                  , homeDataKey = datakey
-                                  , ownerId = ownerId
-                                  , createdAt = createdAt
-                                  , state = verificationState
-                                  , oauthState = Just oauthState
-                                  , accessToken = Nothing
-                                  , refreshToken = Nothing
-                                  , accessExpiry = Nothing
-                                  , refreshExpiry = Nothing
-                                  , hueUsername = Nothing}
-        _ -> return Nothing
+  case numInserted of
+    1 ->
+      return
+        Home
+          { uuid = uuid,
+            homeDataKey = datakey,
+            ownerId = ownerId,
+            createdAt = createdAt,
+            state = verificationState,
+            oauthState = Just oauthState,
+            accessToken = Nothing,
+            refreshToken = Nothing,
+            accessExpiry = Nothing,
+            refreshExpiry = Nothing,
+            hueUsername = Nothing
+          }
+    _ -> throwError "Failed to create home"
 
 -- Retrieves all Homes for the given ownerId
 getUserHomes :: String -> IO [Home]
