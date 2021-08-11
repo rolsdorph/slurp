@@ -24,7 +24,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Except (ExceptT (..), runExceptT)
+import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
 import qualified Network.HTTP.Types            as HTTP
@@ -195,11 +195,11 @@ loginResponse user = do
 validateAndGetId
     :: AppCreds -> JWKSet -> [Param] -> ExceptT L.ByteString IO L.ByteString
 validateAndGetId creds keys params = do
-    clientId <- ExceptT . return $ buildGoogleClientId creds
-    tokenParam <- ExceptT . return $ lookupParam "idtoken" params
-    token <- ExceptT . return $ mapLeft (const "Invalid token") ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
+    clientId <- liftEither $ buildGoogleClientId creds
+    tokenParam <- liftEither $ lookupParam "idtoken" params
+    token <- liftEither $ mapLeft (const "Invalid token") ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
     claims <- ExceptT $ GoogleLogin.verifyToken keys clientId token
-    ExceptT $ return (extractUserId claims)
+    liftEither (extractUserId claims)
 
 buildGoogleClientId :: AppCreds -> Either L.ByteString J.StringOrURI
 buildGoogleClientId creds = do
