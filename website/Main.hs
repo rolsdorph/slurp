@@ -67,7 +67,7 @@ app creds keys request respond = do
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("GET" , "/currentUser"  ) -> showUser currentUser
-        ("POST", "/insecureAuth" ) -> insecureAuth (fst reqBodyParsed)
+        ("POST", "/insecureAuth" ) -> renderResponse $ insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
@@ -182,13 +182,11 @@ collapseResponse :: Either Response Response -> Response
 collapseResponse = either id id
 
 -- POST /insecureAuth
-insecureAuth :: [Param] -> IO Response
-insecureAuth params = collapseResponse <$> runExceptT loginUser
-  where
-    loginUser = do
-      authParam <- withExceptT badRequest (lookupParam "auth" params)
-      user <- withExceptT (const (err500 "Internal server error")) $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
-      withExceptT err500 (ExceptT $ loginResponse user)
+insecureAuth :: [Param] -> ExceptT ErrorResponse IO Response
+insecureAuth params = do
+    authParam <- withExceptT BadRequest (lookupParam "auth" params)
+    user <- withExceptT (const (InternalServerError "Internal server error")) $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
+    withExceptT InternalServerError (ExceptT $ loginResponse user)
 
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse IO Response
