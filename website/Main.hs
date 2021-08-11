@@ -74,7 +74,7 @@ app creds keys request respond = do
         ("GET", "/homes"         ) -> getHomes currentUser
         ("POST", "/homes"        ) -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET", "/simpleSources" ) -> getSimpleSources currentUser
-        ("POST", "/simpleSources") -> postSimpleSource creds currentUser (fst reqBodyParsed)
+        ("POST", "/simpleSources") -> renderResponse $ postSimpleSource creds currentUser (fst reqBodyParsed)
         ("GET" , "/callback"     ) -> hueOauthCallback creds (queryString request)
         (_     , _               ) -> pure notFound
 
@@ -235,21 +235,13 @@ getSimpleSources (Just currentUser) = do
     pure $ success200Json sources
 
 -- POST /simpleSources
-postSimpleSource :: AppCreds -> Maybe User -> [Param] -> IO Response
-postSimpleSource _     Nothing            _      = pure unauthenticated
+postSimpleSource :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSimpleSource _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
 postSimpleSource creds (Just currentUser) params = do
-    parsedSource <- simpleSourceFrom currentUser params
-
-    case parsedSource of
-        (Right source) -> do
-            infoM loggerName "Storing simple source..."
-            storeSourceRes <- storeSimpleSource source
-
-            case storeSourceRes of
-                Just storedSource -> return $ success201Json storedSource
-                _               -> return $ err500 "Couldn't complete operation"
-
-        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
+    parsedSource <- withExceptT BadRequest $ simpleSourceFrom currentUser params
+    liftIO $ infoM loggerName "Storing simple source..."
+    storedSource <- withExceptT InternalServerError $ storeSimpleSource parsedSource
+    return $ success201Json storedSource
 
 -- POST /sinks
 postSink :: AppCreds -> Maybe User -> [Param] -> IO Response
@@ -503,18 +495,19 @@ influxSinkFrom currentUser params = do
         <*> pure currentTime
 
 -- Attempts to construct a simple JSON source
-simpleSourceFrom :: User -> [Param] -> IO (Either L.ByteString SimpleShallowJsonSource)
+simpleSourceFrom :: User -> [Param] -> ExceptT L.ByteString IO SimpleShallowJsonSource
 simpleSourceFrom currentUser params = do
-    currentTime <- getCurrentTime
+  currentTime <- liftIO getCurrentTime
 
-    pure $ SimpleShallowJsonSource <$> pure Nothing
-        <*> (C.unpack . snd <$> lookupParam "datakey" params)
-        <*> pure (userId currentUser)
-        <*> pure currentTime
-        <*> (T.pack . C.unpack . snd <$> lookupParam "url" params)
-        <*> (snd <$> lookupParam "authHeader" params)
-        <*> (eitherDecodeLBS =<< (snd <$> lookupParam "tagMappings" params))
-        <*> (eitherDecodeLBS =<< (snd <$> lookupParam "fieldMappings" params))
+  liftEither $
+    SimpleShallowJsonSource Nothing
+      <$> (C.unpack . snd <$> lookupParam "datakey" params)
+      <*> return (userId currentUser)
+      <*> return currentTime
+      <*> (T.pack . C.unpack . snd <$> lookupParam "url" params)
+      <*> (snd <$> lookupParam "authHeader" params)
+      <*> (eitherDecodeLBS =<< (snd <$> lookupParam "tagMappings" params))
+      <*> (eitherDecodeLBS =<< (snd <$> lookupParam "fieldMappings" params))
 
 eitherDecodeLBS :: FromJSON a => U.ByteString -> Either LB.ByteString a
 eitherDecodeLBS input = mapLeft (LB.fromStrict . C.pack) (eitherDecode (LB.fromStrict input))

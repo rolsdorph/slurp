@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module SimpleSourceDB where
 
 import           Control.Monad
 import           Data.Aeson
+import qualified Data.ByteString.Lazy as BL
 import           Database.HDBC
 import           Database.HDBC.Sqlite3
 import           Data.Maybe
@@ -9,6 +12,7 @@ import           Data.UUID.V4
 import           DBUtil
 import           Types
 import           Util
+import Control.Monad.Except (ExceptT, liftIO, throwError)
 
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
@@ -34,12 +38,12 @@ setupDb = do
     disconnect conn
 
 storeSimpleSource
-    :: SimpleShallowJsonSource -> IO (Maybe SimpleShallowJsonSource)
+    :: SimpleShallowJsonSource -> ExceptT BL.ByteString IO SimpleShallowJsonSource
 storeSimpleSource source = do
-    uuid        <- show <$> nextRandom
+    uuid        <- liftIO $ show <$> nextRandom
 
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+    conn        <- liftIO $ connectSqlite3 dbName
+    numInserted <- liftIO $ run
         conn
         ("INSERT INTO "
         ++ sourceTableName
@@ -55,12 +59,12 @@ storeSimpleSource source = do
         , toSql $ encode (tagMappings source)
         , toSql $ encode (fieldMappings source)
         ]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
 
     case numInserted of
-        1 -> return $ Just (source { genericSourceId = Just uuid })
-        _ -> return Nothing
+        1 -> return (source { genericSourceId = Just uuid })
+        _ -> throwError "Failed to store source"
 
 getUserSimpleSources :: String -> IO [SimpleShallowJsonSource]
 getUserSimpleSources ownerId = do
