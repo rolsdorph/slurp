@@ -237,7 +237,7 @@ getSimpleSources (Just currentUser) = do
 -- POST /simpleSources
 postSimpleSource :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
 postSimpleSource _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
-postSimpleSource creds (Just currentUser) params = do
+postSimpleSource _     (Just currentUser) params = do
     parsedSource <- withExceptT BadRequest $ simpleSourceFrom currentUser params
     liftIO $ infoM loggerName "Storing simple source..."
     storedSource <- withExceptT InternalServerError $ storeSimpleSource parsedSource
@@ -246,7 +246,7 @@ postSimpleSource creds (Just currentUser) params = do
 -- POST /sinks
 postSink :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
 postSink _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
-postSink creds (Just currentUser) params = do
+postSink _     (Just currentUser) params = do
     parsedSink <- withExceptT BadRequest $ influxSinkFrom currentUser params
     liftIO $ infoM loggerName "Storing sink..."
     storedSink <- withExceptT InternalServerError $ storeInfluxSink parsedSink
