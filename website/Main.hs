@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
@@ -24,7 +25,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither)
+import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
 import qualified Network.HTTP.Types            as HTTP
@@ -67,7 +68,7 @@ app creds keys request respond = do
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("GET" , "/currentUser"  ) -> showUser currentUser
         ("POST", "/insecureAuth" ) -> insecureAuth (fst reqBodyParsed)
-        ("POST", "/googleAuth"   ) -> responseOr500 $ googleAuth creds keys (fst reqBodyParsed)
+        ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
         ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
@@ -79,11 +80,22 @@ app creds keys request respond = do
 
     respond response
 
-responseOr500 :: ExceptT LB.ByteString IO Response -> IO Response
-responseOr500 eT = mapper <$> runExceptT eT
+data ErrorResponse = BadRequest LB.ByteString
+                   | Unauthorized LB.ByteString
+                   | InternalServerError LB.ByteString
+
+
+renderResponse :: ExceptT ErrorResponse IO Response -> IO Response
+renderResponse eT = mapper <$> runExceptT eT
   where
-    mapper (Left err) = err500 err
+    mapper (Left err) = renderError err
     mapper (Right res) = res
+
+renderError :: ErrorResponse -> Response
+renderError (Unauthorized _) = unauthenticated
+renderError (BadRequest msg) = badRequest msg
+renderError (InternalServerError msg) = err500 msg
+renderError _ = err500 "An internal server error occurred."
 
 main :: IO ()
 main = do
@@ -174,16 +186,16 @@ insecureAuth :: [Param] -> IO Response
 insecureAuth params = collapseResponse <$> runExceptT loginUser
   where
     loginUser = do
-      authParam <- ExceptT . return $ mapLeft badRequest (lookupParam "auth" params)
+      authParam <- withExceptT badRequest (lookupParam "auth" params)
       user <- ExceptT $ mapLeft (const (err500 "Internal server error: Could not authenticate user")) <$> fetchOrCreateInsecureUser (L.fromStrict $ snd authParam)
       ExceptT $ mapLeft err500 <$> loginResponse user
 
 -- POST /googleAuth
-googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT LB.ByteString IO Response
+googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse IO Response
 googleAuth creds keys params = do
     uid <- validateAndGetId creds keys params
-    user <- ExceptT $ mapLeft (const "Internal server error: Could not authenticate user") <$> fetchOrCreateGoogleUser uid
-    ExceptT $ loginResponse user
+    user <- ExceptT $ mapLeft (const (InternalServerError "Internal server error: Could not authenticate user")) <$> fetchOrCreateGoogleUser uid
+    ExceptT $ mapLeft InternalServerError <$> loginResponse user
 
 loginResponse :: User -> IO (Either LB.ByteString Response)
 loginResponse user = do
@@ -193,20 +205,20 @@ loginResponse user = do
          _ -> return . Left $ "Login error"
 
 validateAndGetId
-    :: AppCreds -> JWKSet -> [Param] -> ExceptT L.ByteString IO L.ByteString
+    :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse IO L.ByteString
 validateAndGetId creds keys params = do
-    clientId <- liftEither $ buildGoogleClientId creds
-    tokenParam <- liftEither $ lookupParam "idtoken" params
-    token <- liftEither $ mapLeft (const "Invalid token") ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
-    claims <- ExceptT $ GoogleLogin.verifyToken keys clientId token
-    liftEither (extractUserId claims)
+    clientId <- withExceptT InternalServerError $ buildGoogleClientId creds
+    tokenParam <- withExceptT BadRequest (lookupParam "idtoken" params)
+    token <- liftEither $ mapLeft (const (BadRequest "Invalid token")) ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
+    claims <- ExceptT $ mapLeft (const (Unauthorized "Failed to validate JWT")) <$> GoogleLogin.verifyToken keys clientId token
+    liftEither $ mapLeft BadRequest (extractUserId claims)
 
-buildGoogleClientId :: AppCreds -> Either L.ByteString J.StringOrURI
+buildGoogleClientId :: (MonadError L.ByteString m) => AppCreds -> m J.StringOrURI
 buildGoogleClientId creds = do
     let res = Lens.preview J.stringOrUri (googleClientId creds)
     case res of
-        (Just r) -> pure r
-        _        -> Left "Failed to parse client ID"
+        (Just r) -> return r
+        _        -> throwError "Failed to parse client ID"
 
 -- GET /sinks
 getSinks :: Maybe User -> IO Response
@@ -467,9 +479,9 @@ instance FromJSON OAuthResponse where
 getRequestHeader :: U.ByteString -> Request -> Maybe HTTP.Header
 getRequestHeader headerName req = find (\h -> fst h == CI.mk headerName) (requestHeaders req)
 
-lookupParam :: L.ByteString -> [Param] -> Either L.ByteString Param
+lookupParam :: (MonadError L.ByteString m) => L.ByteString -> [Param] -> m Param
 lookupParam paramName params =
-    justOrErr ("Couldn't find param " <> paramName)
+    maybe (throwError ("Couldn't find param " <> paramName)) return
         $ find (paramNamed paramName) params
 
 -- Constructs a new Home DTO with the given user as the owner, and the data key from the given params
