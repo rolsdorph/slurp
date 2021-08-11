@@ -187,15 +187,15 @@ insecureAuth params = collapseResponse <$> runExceptT loginUser
   where
     loginUser = do
       authParam <- withExceptT badRequest (lookupParam "auth" params)
-      user <- ExceptT $ mapLeft (const (err500 "Internal server error: Could not authenticate user")) <$> fetchOrCreateInsecureUser (L.fromStrict $ snd authParam)
-      ExceptT $ mapLeft err500 <$> loginResponse user
+      user <- withExceptT (const (err500 "Internal server error")) $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
+      withExceptT err500 (ExceptT $ loginResponse user)
 
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse IO Response
 googleAuth creds keys params = do
     uid <- validateAndGetId creds keys params
-    user <- ExceptT $ mapLeft (const (InternalServerError "Internal server error: Could not authenticate user")) <$> fetchOrCreateGoogleUser uid
-    ExceptT $ mapLeft InternalServerError <$> loginResponse user
+    user <- withExceptT (const (InternalServerError "Internal server error: Could not authenticate user")) $ ExceptT (fetchOrCreateGoogleUser uid)
+    withExceptT InternalServerError $ ExceptT (loginResponse user)
 
 loginResponse :: User -> IO (Either LB.ByteString Response)
 loginResponse user = do
@@ -209,9 +209,9 @@ validateAndGetId
 validateAndGetId creds keys params = do
     clientId <- withExceptT InternalServerError $ buildGoogleClientId creds
     tokenParam <- withExceptT BadRequest (lookupParam "idtoken" params)
-    token <- liftEither $ mapLeft (const (BadRequest "Invalid token")) ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: Either J.JWTError J.SignedJWT)
-    claims <- ExceptT $ mapLeft (const (Unauthorized "Failed to validate JWT")) <$> GoogleLogin.verifyToken keys clientId token
-    liftEither $ mapLeft BadRequest (extractUserId claims)
+    token <- withExceptT (const (BadRequest "Invalid token")) ((J.decodeCompact . utf8ToLbs . snd) tokenParam :: ExceptT J.JWTError IO J.SignedJWT)
+    claims <- withExceptT (const (Unauthorized "Failed to validate JWT")) $ ExceptT (GoogleLogin.verifyToken keys clientId token)
+    withExceptT BadRequest $ liftEither (extractUserId claims)
 
 buildGoogleClientId :: (MonadError L.ByteString m) => AppCreds -> m J.StringOrURI
 buildGoogleClientId creds = do
