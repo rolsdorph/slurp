@@ -70,7 +70,7 @@ app creds keys request respond = do
         ("POST", "/insecureAuth" ) -> renderResponse $ insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
-        ("POST", "/sinks"        ) -> postSink creds currentUser (fst reqBodyParsed)
+        ("POST", "/sinks"        ) -> renderResponse $ postSink creds currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
         ("POST", "/homes"        ) -> postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET", "/simpleSources" ) -> getSimpleSources currentUser
@@ -244,21 +244,13 @@ postSimpleSource creds (Just currentUser) params = do
     return $ success201Json storedSource
 
 -- POST /sinks
-postSink :: AppCreds -> Maybe User -> [Param] -> IO Response
-postSink _     Nothing            _      = pure unauthenticated
+postSink :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSink _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
 postSink creds (Just currentUser) params = do
-    parsedSink <- influxSinkFrom currentUser params
-
-    case parsedSink of
-        (Right sink) -> do
-            infoM loggerName "Storing sink..."
-            storeSinkRes <- storeInfluxSink sink
-
-            case storeSinkRes of
-                Just storedSink -> return $ success201Json storedSink
-                _               -> return $ err500 "Couldn't complete operation"
-
-        (Left e) -> return (badRequest $ "Malformed request body: " <> e)
+    parsedSink <- withExceptT BadRequest $ influxSinkFrom currentUser params
+    liftIO $ infoM loggerName "Storing sink..."
+    storedSink <- withExceptT InternalServerError $ storeInfluxSink parsedSink
+    return $ success201Json storedSink
 
 -- POST /homes
 postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> IO Response
@@ -480,19 +472,18 @@ homeFrom currentUser params = do
         (Right key) -> pure (Right $ PreCreationHome key (userId currentUser) currentTime OAuthPending)
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
-influxSinkFrom :: User -> [Param] -> IO (Either L.ByteString InfluxSink)
+influxSinkFrom :: User -> [Param] -> ExceptT L.ByteString IO InfluxSink
 influxSinkFrom currentUser params = do
-    currentTime <- getCurrentTime
+  currentTime <- liftIO getCurrentTime
 
-    pure $ InfluxSink
-        <$> pure Nothing
-        <*> pure (Just $ userId currentUser)
-        <*> (C.unpack . snd <$> lookupParam "influxHost" params)
-        <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
-        <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
-        <*> (C.unpack . snd <$> lookupParam "influxHost" params)
-        <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
-        <*> pure currentTime
+  liftEither $
+    InfluxSink Nothing (Just $ userId currentUser)
+      <$> (C.unpack . snd <$> lookupParam "influxHost" params)
+      <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
+      <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
+      <*> (C.unpack . snd <$> lookupParam "influxHost" params)
+      <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
+      <*> pure currentTime
 
 -- Attempts to construct a simple JSON source
 simpleSourceFrom :: User -> [Param] -> ExceptT L.ByteString IO SimpleShallowJsonSource

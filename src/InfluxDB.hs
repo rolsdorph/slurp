@@ -1,6 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module InfluxDB
     where
 
+import qualified Data.ByteString.Lazy as BL
 import           Database.HDBC
 import           Database.HDBC.Sqlite3
 import           Data.Maybe
@@ -8,6 +11,7 @@ import           Data.UUID.V4
 import           DBUtil
 import           Types
 import           Util
+import Control.Monad.Except (ExceptT, liftIO, throwError)
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 influxTableName = "influxes" :: String
@@ -32,12 +36,12 @@ setupDb = do
     disconnect conn
 
 -- Stores a InfluxSink in the database
-storeInfluxSink :: InfluxSink -> IO (Maybe InfluxSink)
+storeInfluxSink :: InfluxSink -> ExceptT BL.ByteString IO InfluxSink
 storeInfluxSink influx = do
-    uuid        <- show <$> nextRandom
+    uuid        <- liftIO $ show <$> nextRandom
 
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+    conn        <- liftIO $ connectSqlite3 dbName
+    numInserted <- liftIO $ run
         conn
         ("INSERT INTO "
         ++ influxTableName
@@ -53,12 +57,12 @@ storeInfluxSink influx = do
         , toSql $ influxUsername influx
         , toSql $ influxPassword influx
         ]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
 
     case numInserted of
-        1 -> return $ Just (influx { influxUuid = Just uuid })
-        _ -> return Nothing
+        1 -> return influx { influxUuid = Just uuid }
+        _ -> throwError "Failed to store source."
 
 -- Retrieves all InfluxSinks for the given ownerId
 getUserInfluxSinks :: String -> IO [InfluxSink]
