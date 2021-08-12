@@ -70,11 +70,11 @@ app creds keys request respond = do
         ("POST", "/insecureAuth" ) -> renderResponse $ insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> getSinks currentUser
-        ("POST", "/sinks"        ) -> renderResponse $ postSink creds currentUser (fst reqBodyParsed)
+        ("POST", "/sinks"        ) -> renderResponse $ postSink currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
         ("POST", "/homes"        ) -> renderResponse $ postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET", "/simpleSources" ) -> getSimpleSources currentUser
-        ("POST", "/simpleSources") -> renderResponse $ postSimpleSource creds currentUser (fst reqBodyParsed)
+        ("POST", "/simpleSources") -> renderResponse $ postSimpleSource currentUser (fst reqBodyParsed)
         ("GET" , "/callback"     ) -> renderResponse $ hueOauthCallback creds (queryString request)
         (_     , _               ) -> pure notFound
 
@@ -236,18 +236,18 @@ getSimpleSources (Just currentUser) = do
     pure $ success200Json sources
 
 -- POST /simpleSources
-postSimpleSource :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
-postSimpleSource _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
-postSimpleSource _     (Just currentUser) params = do
+postSimpleSource :: Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSimpleSource Nothing            _      = throwError $ Unauthorized "Unauthorized"
+postSimpleSource (Just currentUser) params = do
     parsedSource <- withExceptT BadRequest $ simpleSourceFrom currentUser params
     liftIO $ infoM loggerName "Storing simple source..."
     storedSource <- withExceptT InternalServerError $ storeSimpleSource parsedSource
     return $ success201Json storedSource
 
 -- POST /sinks
-postSink :: AppCreds -> Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
-postSink _     Nothing            _      = throwError $ Unauthorized "Unauthorized"
-postSink _     (Just currentUser) params = do
+postSink :: Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSink Nothing            _      = throwError $ Unauthorized "Unauthorized"
+postSink (Just currentUser) params = do
     parsedSink <- withExceptT BadRequest $ influxSinkFrom currentUser params
     liftIO $ infoM loggerName "Storing sink..."
     storedSink <- withExceptT InternalServerError $ storeInfluxSink parsedSink
