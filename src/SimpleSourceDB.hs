@@ -37,42 +37,45 @@ setupDb = do
     commit conn
     disconnect conn
 
-storeSimpleSource
-    :: SimpleShallowJsonSource -> ExceptT BL.ByteString IO SimpleShallowJsonSource
-storeSimpleSource source = do
-    uuid        <- liftIO $ show <$> nextRandom
+class Monad m => MonadSimpleSource m where
+  -- TODO: Can we generalize this rather than explicitly returning ExceptT?
+  storeSimpleSource :: SimpleShallowJsonSource -> ExceptT BL.ByteString m SimpleShallowJsonSource
+  getUserSimpleSources :: String -> ExceptT BL.ByteString m [SimpleShallowJsonSource]
 
-    conn        <- liftIO $ connectSqlite3 dbName
-    numInserted <- liftIO $ run
-        conn
-        ("INSERT INTO "
-        ++ sourceTableName
-        ++ "(uuid, datakey, ownerId, createdAt, url, authHeader, tagMappings, fieldMappings) \
-                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        [ toSql uuid
-        , toSql $ genericDataKey source
-        , toSql $ shallowOwnerId source
-        , toSql $ shallowCreatedAt source
-        , toSql $ url source
-        , toSql $ authHeader source
-        , toSql $ encode (tagMappings source)
-        , toSql $ encode (fieldMappings source)
-        ]
-    liftIO $ commit conn
-    liftIO $ disconnect conn
+instance MonadSimpleSource IO where
+  storeSimpleSource source = do
+      uuid        <- liftIO $ show <$> nextRandom
 
-    case numInserted of
-        1 -> return (source { genericSourceId = Just uuid })
-        _ -> throwError "Failed to store source"
+      conn        <- liftIO $ connectSqlite3 dbName
+      numInserted <- liftIO $ run
+          conn
+          ("INSERT INTO "
+          ++ sourceTableName
+          ++ "(uuid, datakey, ownerId, createdAt, url, authHeader, tagMappings, fieldMappings) \
+                                      \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          )
+          [ toSql uuid
+          , toSql $ genericDataKey source
+          , toSql $ shallowOwnerId source
+          , toSql $ shallowCreatedAt source
+          , toSql $ url source
+          , toSql $ authHeader source
+          , toSql $ encode (tagMappings source)
+          , toSql $ encode (fieldMappings source)
+          ]
+      liftIO $ commit conn
+      liftIO $ disconnect conn
 
-getUserSimpleSources :: String -> IO [SimpleShallowJsonSource]
-getUserSimpleSources ownerId = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE ownerId = ?")
-    res <- execute stmt [toSql ownerId]
-    sources <- fetchAllRowsAL stmt
-    pure $ mapMaybe parseSimpleSourceRow sources
+      case numInserted of
+          1 -> return (source { genericSourceId = Just uuid })
+          _ -> throwError "Failed to store source"
+
+  getUserSimpleSources ownerId = do
+      conn <- liftIO $ connectSqlite3 dbName
+      stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE ownerId = ?")
+      res <- liftIO $ execute stmt [toSql ownerId]
+      sources <- liftIO $ fetchAllRowsAL stmt
+      return $ mapMaybe parseSimpleSourceRow sources
 
 parseSimpleSourceRow :: [(String, SqlValue)] -> Maybe SimpleShallowJsonSource
 parseSimpleSourceRow vals = do

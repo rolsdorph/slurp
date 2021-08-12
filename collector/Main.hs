@@ -26,6 +26,7 @@ import           Secrets
 import           Types
 import           UserNotification
 import qualified SimpleSource as SS
+import Control.Monad.Except (runExceptT)
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
@@ -84,15 +85,18 @@ publishAll notificationVar dataVar = forever $ do
 -- Publishes data from all user simple sources to the data queue
 publishSSForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
 publishSSForUser notificationVar dataVar user = do
-    sources <- getUserSimpleSources $ userId user
+    maybeSources <- runExceptT (getUserSimpleSources $ userId user)
 
-    let userNotifyer = notify notificationVar $ userId user
-    let dataQueuePusher = putMVar dataVar
+    case maybeSources of
+      (Left err) -> errorM loggerName (show err)
+      (Right sources) -> do
+          let userNotifyer = notify notificationVar $ userId user
+          let dataQueuePusher = putMVar dataVar
 
-    infoM loggerName "Collecting simple sources..."
-    forM_ sources (collectSimpleSource userNotifyer dataQueuePusher)
+          infoM loggerName "Collecting simple sources..."
+          forM_ sources (collectSimpleSource userNotifyer dataQueuePusher)
 
-    infoM loggerName "Collected simple sources!"
+          infoM loggerName "Collected simple sources!"
 
 collectSimpleSource
     :: UserNotifier -> DataQueuePusher -> SimpleShallowJsonSource -> IO ()

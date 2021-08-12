@@ -73,7 +73,7 @@ app creds keys request respond = do
         ("POST", "/sinks"        ) -> renderResponse $ postSink currentUser (fst reqBodyParsed)
         ("GET", "/homes"         ) -> getHomes currentUser
         ("POST", "/homes"        ) -> renderResponse $ postHome creds currentUser (fst reqBodyParsed) (queryString request)
-        ("GET", "/simpleSources" ) -> getSimpleSources currentUser
+        ("GET", "/simpleSources" ) -> renderResponse $ getSimpleSources currentUser
         ("POST", "/simpleSources") -> renderResponse $ postSimpleSource currentUser (fst reqBodyParsed)
         ("GET" , "/callback"     ) -> renderResponse $ hueOauthCallback creds (queryString request)
         (_     , _               ) -> pure notFound
@@ -229,11 +229,11 @@ getHomes (Just currentUser) = do
     pure $ success200Json homes
 
 -- GET /simpleSources
-getSimpleSources :: MonadSimpleSource m => Maybe User -> m Response
-getSimpleSources Nothing            = pure unauthenticated
+getSimpleSources :: MonadSimpleSource m => Maybe User -> ExceptT ErrorResponse m Response
+getSimpleSources Nothing            = throwError $ Unauthorized "Unauthorized"
 getSimpleSources (Just currentUser) = do
-    sources <- getUserSimpleSources (userId currentUser)
-    pure $ success200Json sources
+    sources <- withExceptT InternalServerError $ getUserSimpleSources (userId currentUser)
+    return $ success200Json sources
 
 -- POST /simpleSources
 postSimpleSource :: Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
