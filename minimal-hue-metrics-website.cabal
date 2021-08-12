@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4160fe650ebc0fff8f126d8194f4b3cea22cc1402fa1e3f0f8189c4ea353e6b6
+-- hash: 4509b63f8c72e678cb07bfb265dddf84ecc6de18717a07ec380d4682c7db4c9b
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -283,6 +283,58 @@ executable notifier-exe
     , websockets
   default-language: Haskell2010
 
+test-suite api-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Api
+      Main
+      Paths_minimal_hue_metrics_website
+  hs-source-dirs:
+      website
+      test/main
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , aeson
+    , amqp
+    , async
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , case-insensitive
+    , containers
+    , convertible
+    , cryptohash-md5
+    , hslogger
+    , hspec
+    , http-client
+    , http-client-tls
+    , http-types
+    , influxdb
+    , jose
+    , lens
+    , minimal-hue-metrics-website
+    , modern-uri
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , scientific
+    , stringsearch
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+    , websockets
+  default-language: Haskell2010
+
 test-suite collector-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
@@ -343,55 +395,6 @@ test-suite google-login-test
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       test/google-login
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      HDBC
-    , HDBC-sqlite3
-    , aeson
-    , amqp
-    , async
-    , base >=4.7 && <5
-    , base16-bytestring
-    , bytestring
-    , case-insensitive
-    , containers
-    , convertible
-    , cryptohash-md5
-    , hslogger
-    , hspec
-    , http-client
-    , http-client-tls
-    , http-types
-    , influxdb
-    , jose
-    , lens
-    , minimal-hue-metrics-website
-    , modern-uri
-    , mtl
-    , pcre-light
-    , regex-base
-    , req
-    , scientific
-    , stringsearch
-    , text
-    , time
-    , unordered-containers
-    , utf8-string
-    , uuid
-    , vector
-    , wai
-    , wai-extra
-    , warp
-    , websockets
-  default-language: Haskell2010
-
-test-suite minimal-hue-metrics-website-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  other-modules:
-      Paths_minimal_hue_metrics_website
-  hs-source-dirs:
-      test/main
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC

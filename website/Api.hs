@@ -83,6 +83,7 @@ app creds keys request respond = do
 data ErrorResponse = BadRequest LB.ByteString
                    | Unauthorized LB.ByteString
                    | InternalServerError LB.ByteString
+   deriving Show
 
 
 renderResponse :: ExceptT ErrorResponse IO Response -> IO Response

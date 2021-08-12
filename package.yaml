@@ -103,9 +103,11 @@ executables:
     - minimal-hue-metrics-website
 
 tests:
-  minimal-hue-metrics-website-test:
+  api-test:
     main:                Spec.hs
-    source-dirs:         test/main
+    source-dirs:
+     - website
+     - test/main
     ghc-options:
     - -threaded
     - -rtsopts
