@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0f0bc5efaa6337cb960703fe222298032fc92bc23013271f8d30bc6484aa875f
+-- hash: 4160fe650ebc0fff8f126d8194f4b3cea22cc1402fa1e3f0f8189c4ea353e6b6
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -140,6 +140,7 @@ executable hue-metrics-collector-exe
 executable hue-metrics-server-exe
   main-is: Main.hs
   other-modules:
+      Api
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       website
