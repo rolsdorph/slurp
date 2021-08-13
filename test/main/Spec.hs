@@ -48,9 +48,23 @@ spec = do
           runWorkingStore (runExceptT (postSimpleSource (Just validUser) (remove k validSource))) `shouldSatisfy` is400
       )
 
+    it "Returns 201 for successful store" $
+      do
+        runWorkingStore . runExceptT $ postSimpleSource (Just validUser) validSource
+        `shouldSatisfy` is201
+
+    it "Returns 500 for DB errors" $
+      do
+        runFailingStore . runExceptT $ postSimpleSource (Just validUser) validSource
+        `shouldSatisfy` is500
+
 is200 :: Either a Response -> Bool
 is200 (Right res) = responseStatus res == status200
 is200 _ = False
+
+is201 :: Either a Response -> Bool
+is201 (Right res) = responseStatus res == status201
+is201 _ = False
 
 is400 :: Either ErrorResponse a -> Bool
 is400 (Left (BadRequest _)) = True
