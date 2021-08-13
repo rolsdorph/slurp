@@ -25,7 +25,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT)
+import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT, lift)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
 import qualified Network.HTTP.Types            as HTTP
@@ -237,11 +237,10 @@ getSimpleSources (Just currentUser) = do
     return $ success200Json sources
 
 -- POST /simpleSources
-postSimpleSource :: Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSimpleSource :: (MonadSimpleSource m, MonadTime m) => Maybe User -> [Param] -> ExceptT ErrorResponse m Response
 postSimpleSource Nothing            _      = throwError $ Unauthorized "Unauthorized"
 postSimpleSource (Just currentUser) params = do
     parsedSource <- withExceptT BadRequest $ simpleSourceFrom currentUser params
-    liftIO $ infoM loggerName "Storing simple source..."
     storedSource <- withExceptT InternalServerError $ storeSimpleSource parsedSource
     return $ success201Json storedSource
 
@@ -472,9 +471,9 @@ influxSinkFrom currentUser params = do
       <*> pure currentTime
 
 -- Attempts to construct a simple JSON source
-simpleSourceFrom :: User -> [Param] -> ExceptT L.ByteString IO SimpleShallowJsonSource
+simpleSourceFrom :: (MonadTime m) => User -> [Param] -> ExceptT L.ByteString m SimpleShallowJsonSource
 simpleSourceFrom currentUser params = do
-  currentTime <- liftIO getCurrentTime
+  currentTime <- lift currentTime
 
   liftEither $
     SimpleShallowJsonSource Nothing

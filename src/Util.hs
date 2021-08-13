@@ -7,6 +7,7 @@ import Data.Either
 import qualified Data.ByteString.Char8         as C
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString.Lazy          as L
+import Data.Time.Clock (UTCTime, getCurrentTime)
 
 justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
 justOrErr errMsg Nothing  = Left errMsg
@@ -42,3 +43,9 @@ combineEithers _ (Left errY) = Left errY
 
 utf8ToLbs :: U.ByteString -> L.ByteString
 utf8ToLbs utfString = L.fromStrict (C.pack (U.toString utfString))
+
+class Monad m => MonadTime m where
+  currentTime :: m UTCTime
+
+instance MonadTime IO where
+  currentTime = getCurrentTime

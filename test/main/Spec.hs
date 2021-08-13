@@ -13,6 +13,7 @@ import Network.Wai.Parse (Param)
 import SimpleSourceDB
 import Test.Hspec (Spec, describe, hspec, it, shouldSatisfy)
 import Types (AuthType (Insecure), User (..))
+import Util (MonadTime, currentTime)
 
 main :: IO ()
 main = hspec spec
