@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Main where
 
@@ -27,6 +28,8 @@ import           Types
 import           UserNotification
 import qualified SimpleSource as SS
 import Control.Monad.Except (runExceptT)
+import Network.HTTP.Req (runReq, defaultHttpConfig, req, header, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
+import Control.Exception (catch)
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
@@ -98,10 +101,32 @@ publishSSForUser notificationVar dataVar user = do
 
           infoM loggerName "Collected simple sources!"
 
+newtype SimpleSourceStack a = SimpleSourceStack { runSss :: IO a }
+  deriving (Functor, Applicative, Monad)
+
+instance SS.HasHttp SimpleSourceStack where
+  simpleGet url authHeader = SimpleSourceStack $ do
+    catch
+      ( runReq defaultHttpConfig $ do
+          res <-
+            req
+              GET
+              url
+              NoReqBody
+              lbsResponse
+              (header "Authorization" authHeader)
+          return . Right $ responseBody res
+      )
+      (\ex -> return . Left $ "Failed to collect simple source: " ++ show (ex :: HttpException))
+
+instance SS.HasLogger SimpleSourceStack where
+  infoLog  = SimpleSourceStack . infoM loggerName
+  errorLog = SimpleSourceStack . errorM loggerName
+
 collectSimpleSource
     :: UserNotifier -> DataQueuePusher -> SimpleShallowJsonSource -> IO ()
 collectSimpleSource notifyUser notifyDataQueue source = do
-    sourceData <- SS.collect (errorM loggerName) source
+    sourceData <- runSss $ SS.collect source
 
     case sourceData of
          (Left err) -> errorM loggerName $ "Failed to collect data: " <> err

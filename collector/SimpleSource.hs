@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module SimpleSource where
 
@@ -9,6 +10,7 @@ import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString               as B
+import qualified Data.ByteString.Lazy          as LB
 import qualified Data.List                     as List
 import           Data.Maybe
 import           Data.Text
@@ -18,43 +20,36 @@ import           Text.URI
 import           Types
 import           Util
 
-collectOrError :: IO (Either String SourceData) -> IO (Either String SourceData)
-collectOrError a = catch a (\ex -> (pure . Left) $ "Failed to collect simple source: " ++ show (ex :: HttpException))
+class (Monad m) => HasHttp m where
+  simpleGet :: Url a -> B.ByteString -> m (Either String LB.ByteString)
+
+class Monad m => HasLogger m where
+  infoLog :: String -> m ()
+  errorLog :: String -> m ()
 
 -- Extracts the desired tags and fields from the given JSON source
-collect
-    :: (String -> IO ())
-    -> SimpleShallowJsonSource
-    -> IO (Either String SourceData)
-collect logger source = collectOrError $ runReq defaultHttpConfig $ do
+collect :: (HasHttp m, HasLogger m) => SimpleShallowJsonSource -> m (Either String SourceData)
+collect source = do
     let maybeUri = mkURI >=> useHttpsURI $ url source
     case maybeUri of
         (Just (uri, _)) -> do
-            res <- req GET
-                       uri
-                       NoReqBody
-                       lbsResponse
-                       (header "Authorization" (authHeader source))
+            res <- simpleGet uri (authHeader source)
 
-            let decoded = eitherDecode (responseBody res)
+            let decoded = res >>= eitherDecode
             case decoded of
-                (Right val) -> do
-                    liftIO $ extract logger source val
-                (Left err) -> pure $ Left err
+                (Right val) -> extract source val
+                (Left err) -> return $ Left err
 
-        _ -> pure $ Left "Failed to parse collection URL"
+        _ -> return $ Left "Failed to parse collection URL"
 
 extract
-    :: (String -> IO ())
-    -> SimpleShallowJsonSource
-    -> Value
-    -> IO (Either String SourceData)
-extract logger definition value = do
+    :: (HasLogger m) => SimpleShallowJsonSource -> Value -> m (Either String SourceData)
+extract definition value = do
     let tagsOrErrors   = List.map (getValue value) $ tagMappings definition
     let fieldsOrErrors = List.map (getValue value) $ fieldMappings definition
 
-    logErrors logger tagsOrErrors
-    logErrors logger fieldsOrErrors
+    logErrors' tagsOrErrors
+    logErrors' fieldsOrErrors
 
     let tags          = mapMaybe rightOrNothing tagsOrErrors
     let fields        = mapMaybe rightOrNothing fieldsOrErrors
@@ -63,14 +58,21 @@ extract logger definition value = do
 
     let maybeSourceId = genericSourceId definition
     case maybeSourceId of
-        (Just sourceId) -> pure $ Right (SourceData {
+        (Just sourceId) ->return $ Right (SourceData {
                                                 sourceId   = sourceId,
                                                 sourceOwnerId = shallowOwnerId definition,
                                                 datakey    = genericDataKey definition,
                                                 datapoints = [dp]
                                   })
-        _ -> pure $ Left "Source ID missing, skipping source"
+        _ -> return $ Left "Source ID missing, skipping source"
 
 getValue :: Value -> JsonMapping -> Either String MappedValue
 getValue value mapping = mapRight (snd mapping, )
     $ parseEither (withObject "SimpleJson" $ \o -> o .: fst mapping) value
+
+logErrors' :: (HasLogger m) => [Either String a] -> m ()
+logErrors' = mapM_
+    (\case
+        (Left errMsg) -> errorLog errMsg
+        _             -> return ()
+    )

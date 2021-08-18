@@ -145,6 +145,9 @@ data DataPoint = DataPoint {
     fields :: [(String, DataPointValue)]
 } deriving Show
 
+instance Eq DataPoint where
+  dp1 == dp2 = tags dp1 == tags dp2 && fields dp1 == fields dp2
+
 instance ToJSON DataPoint where
     toJSON dp =
         object ["tags" .= tags dp, "fields" .= fields dp]
@@ -157,7 +160,7 @@ data DataPointValue = IntValue Int
                     | DoubleValue Double
                     | StringValue String
                     | BoolValue Bool
-    deriving Show
+    deriving (Show, Eq)
 
 instance ToJSON DataPointValue where
     toJSON (IntValue val) = toJSON val

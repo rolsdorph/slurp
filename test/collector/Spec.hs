@@ -1,6 +1,10 @@
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
+import Data.Aeson (Value (Bool, Number, String), encode, object)
+import qualified Data.ByteString.Lazy as LB
+import Data.Functor.Identity
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
@@ -11,11 +15,24 @@ import Types
 main :: IO ()
 main = hspec spec
 
+newtype SuccessStack a = SuccessStack (Identity a)
+  deriving (Functor, Applicative, Monad)
+
+instance SS.HasHttp SuccessStack where
+  simpleGet _ _ = return $ Right validResponse
+
+instance SS.HasLogger SuccessStack where
+  infoLog = undefined
+  errorLog = undefined
+
+runSuccessStack :: SuccessStack a -> a
+runSuccessStack (SuccessStack (Identity a)) = a
+
 spec :: Spec
 spec = do
   describe "Simple Source Collector" $ do
     it "Returns an error when encountering a malformed URL" $ do
-      res <- SS.collect noopLogger $ testSource {url = "MALFORMED"}
+      let res = runSuccessStack $ SS.collect (testSource {url = "MALFORMED"})
       res `shouldSatisfy` isErrorContaining "collection URL"
 
     it "Returns an error when encountering malformed JSON" $ do
@@ -49,3 +66,14 @@ testSource =
       tagMappings = [],
       fieldMappings = []
     }
+
+validResponse :: LB.ByteString
+validResponse = encode testResponse
+
+testResponse :: Value
+testResponse =
+  object
+    [ ("key1", Number 1337),
+      ("key2", String "what"),
+      ("key3", Bool False)
+    ]
