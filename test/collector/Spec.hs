@@ -10,6 +10,7 @@ import Data.List (isInfixOf)
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import qualified SimpleSource as SS
+import qualified HueHome as HH
 import Test.Hspec (Spec, describe, hspec, it, shouldBe, shouldSatisfy)
 import Types
 
@@ -93,6 +94,15 @@ spec = do
                                ]
                            }
                        ]
+
+  describe "Hue Home Collector" $ do
+    it "Returns an error when the collection request fails" $ do
+      let res = runFailingStack $ HH.collect "somehost" "myusername" (Just "token")
+      res `shouldSatisfy` isErrorContaining "HTTP error"
+
+    it "Returns an error when receiving invalid data" $ do
+      let res = runInvalidJsonStack $ HH.collect "somehost" "myusername" (Just "token")
+      res `shouldSatisfy` isErrorContaining "not a valid json value"
 
 isErrorContaining :: String -> Either String a -> Bool
 isErrorContaining desired (Left actual) = desired `isInfixOf` actual

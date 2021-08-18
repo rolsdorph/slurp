@@ -75,7 +75,7 @@ data Light = Light
     ctTemp :: Int,
     reachable :: Bool
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance FromJSON Light where
   parseJSON = withObject "Light" $ \l -> do
