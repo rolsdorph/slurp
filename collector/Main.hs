@@ -22,7 +22,7 @@ import           System.Log.Handler.Simple
 import           SimpleSourceDB
 import           HomeDB
 import           UserDB
-import           Collector
+import           HueHome
 import           Secrets
 import           Types
 import           UserNotification
