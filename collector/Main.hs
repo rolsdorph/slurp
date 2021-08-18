@@ -34,6 +34,28 @@ import Control.Exception (catch)
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
 
+newtype CollectorStack a = CollectorStack { runCollector :: IO a }
+  deriving (Functor, Applicative, Monad)
+
+instance SS.HasHttp CollectorStack where
+  simpleGet url options = CollectorStack $ do
+    catch
+      ( runReq defaultHttpConfig $ do
+          res <-
+            req
+              GET
+              url
+              NoReqBody
+              lbsResponse
+              options
+          return . Right $ responseBody res
+      )
+      (\ex -> return . Left $ "Failed to collect simple source: " ++ show (ex :: HttpException))
+
+instance SS.HasLogger CollectorStack where
+  infoLog  = CollectorStack . infoM loggerName
+  errorLog = CollectorStack . errorM loggerName
+
 main :: IO ()
 main = do
     updateGlobalLogger rootLoggerName removeHandler
@@ -101,32 +123,10 @@ publishSSForUser notificationVar dataVar user = do
 
           infoM loggerName "Collected simple sources!"
 
-newtype SimpleSourceStack a = SimpleSourceStack { runSss :: IO a }
-  deriving (Functor, Applicative, Monad)
-
-instance SS.HasHttp SimpleSourceStack where
-  simpleGet url authHeader = SimpleSourceStack $ do
-    catch
-      ( runReq defaultHttpConfig $ do
-          res <-
-            req
-              GET
-              url
-              NoReqBody
-              lbsResponse
-              (header "Authorization" authHeader)
-          return . Right $ responseBody res
-      )
-      (\ex -> return . Left $ "Failed to collect simple source: " ++ show (ex :: HttpException))
-
-instance SS.HasLogger SimpleSourceStack where
-  infoLog  = SimpleSourceStack . infoM loggerName
-  errorLog = SimpleSourceStack . errorM loggerName
-
 collectSimpleSource
     :: UserNotifier -> DataQueuePusher -> SimpleShallowJsonSource -> IO ()
 collectSimpleSource notifyUser notifyDataQueue source = do
-    sourceData <- runSss $ SS.collect source
+    sourceData <- runCollector $ SS.collect source
 
     case sourceData of
          (Left err) -> errorM loggerName $ "Failed to collect data: " <> err
@@ -185,20 +185,23 @@ collectHome notifyUser notifyDataQueue home = do
     case (maybeToken, maybeUsername) of
         (Just token, Just username) -> do
             -- Get the data
-            lights <- collect hueBridgeApi username (Just token)
-            infoM loggerName "Collected light data"
+            maybeLights <- runCollector $ collect hueBridgeApi username (Just token)
+            case maybeLights of
+              (Right lights) -> do
+                      infoM loggerName "Collected light data"
 
-            -- Notify the user that we've collected it
-            homePayload <- buildHomePayload home
-            notifyUser homePayload
+                      -- Notify the user that we've collected it
+                      homePayload <- buildHomePayload home
+                      notifyUser homePayload
 
-            -- Stick the data on the data queue
-            notifyDataQueue $ SourceData { sourceId      = uuid home
-                                         , sourceOwnerId = ownerId home
-                                         , datakey       = homeDataKey home
-                                         , datapoints = map toDataPoint lights
-                                         }
+                      -- Stick the data on the data queue
+                      notifyDataQueue $ SourceData { sourceId      = uuid home
+                                                   , sourceOwnerId = ownerId home
+                                                   , datakey       = homeDataKey home
+                                                   , datapoints = map toDataPoint lights
+                                                   }
 
-            infoM loggerName "Published light data"
+                      infoM loggerName "Published light data"
+              (Left err) -> errorM loggerName err
         _ -> warningM loggerName
                       "Username or token missing, not able to collect home"

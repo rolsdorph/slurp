@@ -19,14 +19,15 @@ import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import Network.HTTP.Client (newManager)
 
 import Types as T
+import SimpleSource (HasHttp, simpleGet)
 
 type BridgeUsername = String
 type BridgeHost = String
 type Token = String
-collect :: BridgeHost -> BridgeUsername -> Maybe Token -> IO [Light]
+collect :: (HasHttp m) => BridgeHost -> BridgeUsername -> Maybe Token -> m (Either String [Light])
 collect host username token = do
   lights <- getLights host username token
-  pure $ parseLights lights
+  return $ parseLights <$> lights
 
 parseLights :: Value -> [Light]
 parseLights value = do
@@ -34,24 +35,17 @@ parseLights value = do
   fromMaybe [] parseRes
 
 bearerHeader :: Maybe Token -> Option scheme
-bearerHeader (Just token) = (header "Authorization" (U.fromString $ "Bearer " ++ token))
+bearerHeader (Just token) = header "Authorization" (U.fromString $ "Bearer " ++ token)
 bearerHeader Nothing = mempty
 
-getLights :: String -> String -> Maybe Token -> IO Value
-getLights bridgeIp username token = runReq defaultHttpConfig $ do
+getLights :: (HasHttp m) => String -> String -> Maybe Token -> m (Either String Value)
+getLights bridgeIp username token = do
   res <-
-    req
-      GET
+    simpleGet
       (https (S.fromString bridgeIp) /: ("bridge" :: Text) /: S.fromString username /: ("lights" :: Text))
-      NoReqBody
-      lbsResponse
       (bearerHeader token)
 
-  let resData = decode (responseBody res) :: Maybe Value
-
-  case resData of
-    Just x -> return x
-    Nothing -> error "Failed to parse response from Hue Bridge"
+  return $ res >>= eitherDecode
 
 toDataPoint :: Light -> T.DataPoint
 toDataPoint l = T.DataPoint {

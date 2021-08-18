@@ -21,7 +21,7 @@ import           Types
 import           Util
 
 class (Monad m) => HasHttp m where
-  simpleGet :: Url a -> B.ByteString -> m (Either String LB.ByteString)
+  simpleGet :: Url scheme -> Option scheme -> m (Either String LB.ByteString)
 
 class Monad m => HasLogger m where
   infoLog :: String -> m ()
@@ -33,7 +33,7 @@ collect source = do
     let maybeUri = mkURI >=> useHttpsURI $ url source
     case maybeUri of
         (Just (uri, _)) -> do
-            res <- simpleGet uri (authHeader source)
+            res <- simpleGet uri (header "Authorization" (authHeader source))
 
             let decoded = res >>= eitherDecode
             case decoded of
