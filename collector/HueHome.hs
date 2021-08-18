@@ -19,7 +19,6 @@ import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import Network.HTTP.Client (newManager)
 
 import Types as T
-import SimpleSource (HasHttp, simpleGet)
 
 type BridgeUsername = String
 type BridgeHost = String

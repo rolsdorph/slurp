@@ -37,7 +37,7 @@ loggerName = "Collector"
 newtype CollectorStack a = CollectorStack { runCollector :: IO a }
   deriving (Functor, Applicative, Monad)
 
-instance SS.HasHttp CollectorStack where
+instance HasHttp CollectorStack where
   simpleGet url options = CollectorStack $ do
     catch
       ( runReq defaultHttpConfig $ do
@@ -52,7 +52,7 @@ instance SS.HasHttp CollectorStack where
       )
       (\ex -> return . Left $ "Failed to collect simple source: " ++ show (ex :: HttpException))
 
-instance SS.HasLogger CollectorStack where
+instance HasLogger CollectorStack where
   infoLog  = CollectorStack . infoM loggerName
   errorLog = CollectorStack . errorM loggerName
 

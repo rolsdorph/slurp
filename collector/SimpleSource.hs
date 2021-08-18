@@ -20,13 +20,6 @@ import           Text.URI
 import           Types
 import           Util
 
-class (Monad m) => HasHttp m where
-  simpleGet :: Url scheme -> Option scheme -> m (Either String LB.ByteString)
-
-class Monad m => HasLogger m where
-  infoLog :: String -> m ()
-  errorLog :: String -> m ()
-
 -- Extracts the desired tags and fields from the given JSON source
 collect :: (HasHttp m, HasLogger m) => SimpleShallowJsonSource -> m (Either String SourceData)
 collect source = do

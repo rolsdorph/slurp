@@ -22,10 +22,10 @@ newtype FailingStack a = FailingStack (Identity a)
 runFailingStack :: FailingStack a -> a
 runFailingStack (FailingStack (Identity a)) = a
 
-instance SS.HasHttp FailingStack where
+instance HasHttp FailingStack where
   simpleGet _ _ = return $ Left "HTTP error"
 
-instance SS.HasLogger FailingStack where
+instance HasLogger FailingStack where
   infoLog = undefined
   errorLog = undefined
 
@@ -35,20 +35,20 @@ newtype InvalidJsonStack a = InvalidJsonStack (Identity a)
 runInvalidJsonStack :: InvalidJsonStack a -> a
 runInvalidJsonStack (InvalidJsonStack (Identity a)) = a
 
-instance SS.HasHttp InvalidJsonStack where
+instance HasHttp InvalidJsonStack where
   simpleGet _ _ = return $ Right invalidResponse
 
-instance SS.HasLogger InvalidJsonStack where
+instance HasLogger InvalidJsonStack where
   infoLog = undefined
   errorLog = undefined
 
 newtype SuccessStack a = SuccessStack (Identity a)
   deriving (Functor, Applicative, Monad)
 
-instance SS.HasHttp SuccessStack where
+instance HasHttp SuccessStack where
   simpleGet _ _ = return $ Right validResponse
 
-instance SS.HasLogger SuccessStack where
+instance HasLogger SuccessStack where
   infoLog = undefined
   errorLog = undefined
 

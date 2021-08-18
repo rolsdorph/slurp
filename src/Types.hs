@@ -24,6 +24,8 @@ module Types
     , JsonMapping
     , MappedValue
     , SimpleShallowJsonSource (..)
+    , HasHttp (..)
+    , HasLogger (..)
     )
 where
 
@@ -34,8 +36,17 @@ import           Data.Convertible
 import           Database.HDBC.SqlValue
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString               as B
+import qualified Data.ByteString.Lazy          as LB
 import qualified Data.Text                     as T
 import           Data.Scientific
+import Network.HTTP.Req (Url, Option)
+
+class (Monad m) => HasHttp m where
+  simpleGet :: Url scheme -> Option scheme -> m (Either String LB.ByteString)
+
+class Monad m => HasLogger m where
+  infoLog :: String -> m ()
+  errorLog :: String -> m ()
 
 type ClientId = U.ByteString
 type GoogleClientId = T.Text
