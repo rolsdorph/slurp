@@ -30,6 +30,7 @@ import qualified SimpleSource as SS
 import Control.Monad.Except (runExceptT)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, header, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
 import Control.Exception (catch)
+import Control.Monad.Reader (ReaderT, asks, liftIO, runReaderT)
 
 hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
@@ -58,41 +59,47 @@ instance HasLogger CollectorStack where
 
 main :: IO ()
 main = do
-    updateGlobalLogger rootLoggerName removeHandler
-    updateGlobalLogger rootLoggerName $ setLevel DEBUG
-    stdOutHandler <- verboseStreamHandler stdout DEBUG
-    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+  updateGlobalLogger rootLoggerName removeHandler
+  updateGlobalLogger rootLoggerName $ setLevel DEBUG
+  stdOutHandler <- verboseStreamHandler stdout DEBUG
+  updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-    maybeQueueConfig <- readUserNotificationQueueConfig
+  maybeConfig <- readUserNotificationQueueConfig
+  case maybeConfig of
+    (Just config) -> runReaderT app config
+    Nothing -> emergencyM loggerName "User notification queue missing, not starting"
 
-    case maybeQueueConfig of
-        (Just queueConfig) -> do
-            userNotificationVar <- newEmptyMVar
-            dataEventsVar <- newEmptyMVar
+app :: ReaderT QueueConfig IO ()
+app = do
+    host' <- asks hostname
+    vhost' <- asks vhost
+    username' <- asks username
+    password' <- asks password
+    notificationsQueue <- asks notiQueueName
+    dataQueue <- asks dataQueueName
 
-            queueConnection <- Q.openConnection (hostname queueConfig)
-                                                (vhost queueConfig)
-                                                (username queueConfig)
-                                                (password queueConfig)
-            queueChannel    <- Q.openChannel queueConnection
+    userNotificationVar <- liftIO newEmptyMVar
+    dataEventsVar <- liftIO newEmptyMVar
 
-            Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
-            Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
+    queueConnection <- liftIO $ Q.openConnection host' vhost' username' password'
+    queueChannel    <- liftIO $ Q.openChannel queueConnection
 
-            publishJob      <- async $ publishAll userNotificationVar dataEventsVar
+    liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notificationsQueue }
+    liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueue }
 
-            userNotificationJob <- async $ publishNotifications
-                (userNotificationVar :: MVar MessageToUser)
-                queueChannel
-                (notiQueueName queueConfig)
+    publishJob      <- liftIO . async $ publishAll userNotificationVar dataEventsVar
 
-            dataEventsJob <- async $ publishNotifications
-                (dataEventsVar :: MVar SourceData)
-                queueChannel
-                (dataQueueName queueConfig)
+    userNotificationJob <- liftIO . async $ publishNotifications
+        (userNotificationVar :: MVar MessageToUser)
+        queueChannel
+        notificationsQueue
 
-            wait publishJob
-        _ -> emergencyM loggerName "User notification queue config missing, not starting"
+    dataEventsJob <- liftIO . async $ publishNotifications
+        (dataEventsVar :: MVar SourceData)
+        queueChannel
+        dataQueue
+
+    liftIO $ wait publishJob
 
 -- Publishes data from all user sources to the data queue
 publishAll :: MVar MessageToUser -> MVar SourceData -> IO ()
