@@ -2,15 +2,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-import Data.Aeson (Value (Bool, Number, String), encode, object)
+import Data.Aeson (Value (Array, Bool, Number, String), encode, object)
 import qualified Data.ByteString.Lazy as LB
 import Data.Either (isRight)
 import Data.Functor.Identity
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
-import qualified SimpleSource as SS
+import Data.Vector (fromList)
 import qualified HueHome as HH
+import qualified SimpleSource as SS
 import Test.Hspec (Spec, describe, hspec, it, shouldBe, shouldSatisfy)
 import Types
 
@@ -43,24 +44,37 @@ instance HasLogger InvalidJsonStack where
   infoLog = undefined
   errorLog = undefined
 
-newtype SuccessStack a = SuccessStack (Identity a)
+newtype SimpleStack a = SimpleStack (Identity a)
   deriving (Functor, Applicative, Monad)
 
-instance HasHttp SuccessStack where
-  simpleGet _ _ = return $ Right validResponse
+instance HasHttp SimpleStack where
+  simpleGet _ _ = return $ Right validSimpleResponse
 
-instance HasLogger SuccessStack where
+instance HasLogger SimpleStack where
   infoLog = undefined
   errorLog = undefined
 
-runSuccessStack :: SuccessStack a -> a
-runSuccessStack (SuccessStack (Identity a)) = a
+runSimpleStack :: SimpleStack a -> a
+runSimpleStack (SimpleStack (Identity a)) = a
+
+newtype LightsStack a = LightsStack (Identity a)
+  deriving (Functor, Applicative, Monad)
+
+instance HasHttp LightsStack where
+  simpleGet _ _ = return $ Right validLightsResponse
+
+instance HasLogger LightsStack where
+  infoLog = undefined
+  errorLog = undefined
+
+runLightsStack :: LightsStack a -> a
+runLightsStack (LightsStack (Identity a)) = a
 
 spec :: Spec
 spec = do
   describe "Simple Source Collector" $ do
     it "Returns an error when encountering a malformed URL" $ do
-      let res = runSuccessStack $ SS.collect (testSource {url = "MALFORMED"})
+      let res = runSimpleStack $ SS.collect (testSource {url = "MALFORMED"})
       res `shouldSatisfy` isErrorContaining "collection URL"
 
     it "Returns an error when the JSON fetch fails" $ do
@@ -72,11 +86,11 @@ spec = do
       res `shouldSatisfy` isErrorContaining "not a valid json value"
 
     it "Returns an error if the source does not have an ID" $ do
-      let res = runSuccessStack $ SS.collect testSource {genericSourceId = Nothing}
+      let res = runSimpleStack $ SS.collect testSource {genericSourceId = Nothing}
       res `shouldSatisfy` isErrorContaining "Source ID missing"
 
     it "Extracts tags and fields from the result JSON" $ do
-      let res = runSuccessStack $ SS.collect testSource
+      let res = runSimpleStack $ SS.collect testSource
       res `shouldSatisfy` isRight
       case res of
         (Left _) -> fail "Should never happen"
@@ -103,6 +117,19 @@ spec = do
     it "Returns an error when receiving invalid data" $ do
       let res = runInvalidJsonStack $ HH.collect "somehost" "myusername" (Just "token")
       res `shouldSatisfy` isErrorContaining "not a valid json value"
+
+    it "Parses the received JSON into lights " $ do
+      let res = runLightsStack $ HH.collect "somehost" "myusername" (Just "token")
+      res `shouldSatisfy` isRight
+      case res of
+        (Left _) -> fail "Should never happen"
+        (Right lights) ->
+          HH.toDataPoint <$> lights
+            `shouldBe` [ DataPoint
+                           { tags = [("name", StringValue "my-light"), ("uuid", StringValue "some-uuid"), ("type", StringValue "lighttype")],
+                             fields = [("on", BoolValue True), ("brightness", IntValue 1), ("hue", IntValue 2), ("saturation", IntValue 1337), ("xcolor", DoubleValue 4.0), ("ycolor", DoubleValue 2.0), ("ctTemp", IntValue 42), ("reachable", BoolValue True)]
+                           }
+                       ]
 
 isErrorContaining :: String -> Either String a -> Bool
 isErrorContaining desired (Left actual) = desired `isInfixOf` actual
@@ -133,13 +160,39 @@ testSource =
 invalidResponse :: LB.ByteString
 invalidResponse = "asd[[[]]{}"
 
-validResponse :: LB.ByteString
-validResponse = encode testResponse
+validSimpleResponse :: LB.ByteString
+validSimpleResponse = encode simpleResponse
 
-testResponse :: Value
-testResponse =
+validLightsResponse :: LB.ByteString
+validLightsResponse = encode lightsResponse
+
+simpleResponse :: Value
+simpleResponse =
   object
     [ ("key1", Number 1337),
       ("key2", String "what"),
       ("key3", Bool False)
+    ]
+
+lightsResponse :: Value
+lightsResponse =
+  object
+    [ ( "1",
+        object
+          [ ("name", "my-light"),
+            ("uniqueid", "some-uuid"),
+            ("type", "lighttype"),
+            ( "state",
+              object
+                [ ("on", Bool True),
+                  ("bri", Number 1),
+                  ("hue", Number 2),
+                  ("sat", Number 1337),
+                  ("xy", Array $ fromList [Number 4, Number 2]),
+                  ("ct", Number 42),
+                  ("reachable", Bool True)
+                ]
+            )
+          ]
+      )
     ]
