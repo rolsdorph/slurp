@@ -26,12 +26,10 @@ type Token = String
 collect :: (HasHttp m) => BridgeHost -> BridgeUsername -> Maybe Token -> m (Either String [Light])
 collect host username token = do
   lights <- getLights host username token
-  return $ parseLights <$> lights
+  return $ lights >>= parseLights
 
-parseLights :: Value -> [Light]
-parseLights value = do
-  let parseRes = parseMaybe (withObject "lightsList" (mapM (parseJSON . snd) . HM.toList)) value
-  fromMaybe [] parseRes
+parseLights :: Value -> Either String [Light]
+parseLights = parseEither (withObject "lightsList" (mapM (parseJSON . snd) . HM.toList))
 
 bearerHeader :: Maybe Token -> Option scheme
 bearerHeader (Just token) = header "Authorization" (U.fromString $ "Bearer " ++ token)
