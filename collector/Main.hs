@@ -32,7 +32,6 @@ import Network.HTTP.Req (runReq, defaultHttpConfig, req, header, GET (..), NoReq
 import Control.Exception (catch)
 import Control.Monad.Reader (ReaderT, asks, liftIO, runReaderT)
 
-hueBridgeApi = "api.meethue.com"
 loggerName = "Collector"
 
 newtype CollectorStack a = CollectorStack { runCollector :: IO a }
@@ -187,28 +186,18 @@ type DataQueuePusher = SourceData -> IO ()
 -- Publishes data from the given home to the data queue
 collectHome :: UserNotifier -> DataQueuePusher -> Home -> IO ()
 collectHome notifyUser notifyDataQueue home = do
-    let maybeToken    = accessToken home
-    let maybeUsername = hueUsername home
-    case (maybeToken, maybeUsername) of
-        (Just token, Just username) -> do
-            -- Get the data
-            maybeLights <- runCollector $ collect hueBridgeApi username (Just token)
-            case maybeLights of
-              (Right lights) -> do
-                      infoM loggerName "Collected light data"
+  -- Get the data
+  maybeSourceData <- runCollector $ collect home
+  case maybeSourceData of
+    (Right sourceData) -> do
+      infoM loggerName "Collected light data"
 
-                      -- Notify the user that we've collected it
-                      homePayload <- buildHomePayload home
-                      notifyUser homePayload
+      -- Notify the user that we've collected it
+      homePayload <- buildHomePayload home
+      notifyUser homePayload
 
-                      -- Stick the data on the data queue
-                      notifyDataQueue $ SourceData { sourceId      = uuid home
-                                                   , sourceOwnerId = ownerId home
-                                                   , datakey       = homeDataKey home
-                                                   , datapoints = map toDataPoint lights
-                                                   }
+      -- Stick the data on the data queue
+      notifyDataQueue sourceData
 
-                      infoM loggerName "Published light data"
-              (Left err) -> errorM loggerName err
-        _ -> warningM loggerName
-                      "Username or token missing, not able to collect home"
+      infoM loggerName "Published light data"
+    (Left err) -> errorM loggerName err

@@ -111,25 +111,41 @@ spec = do
 
   describe "Hue Home Collector" $ do
     it "Returns an error when the collection request fails" $ do
-      let res = runFailingStack $ HH.collect "somehost" "myusername" (Just "token")
+      let res = runFailingStack $ HH.collect testHome
       res `shouldSatisfy` isErrorContaining "HTTP error"
 
     it "Returns an error when receiving invalid data" $ do
-      let res = runInvalidJsonStack $ HH.collect "somehost" "myusername" (Just "token")
+      let res = runInvalidJsonStack $ HH.collect testHome
       res `shouldSatisfy` isErrorContaining "not a valid json value"
 
     it "Parses the received JSON into lights " $ do
-      let res = runLightsStack $ HH.collect "somehost" "myusername" (Just "token")
+      let res = runLightsStack $ HH.collect testHome
       res `shouldSatisfy` isRight
       case res of
         (Left _) -> fail "Should never happen"
-        (Right lights) ->
-          HH.toDataPoint <$> lights
+        (Right sourceData) ->
+          datapoints sourceData
             `shouldBe` [ DataPoint
                            { tags = [("name", StringValue "my-light"), ("uuid", StringValue "some-uuid"), ("type", StringValue "lighttype")],
                              fields = [("on", BoolValue True), ("brightness", IntValue 1), ("hue", IntValue 2), ("saturation", IntValue 1337), ("xcolor", DoubleValue 4.0), ("ycolor", DoubleValue 2.0), ("ctTemp", IntValue 42), ("reachable", BoolValue True)]
                            }
                        ]
+
+testHome :: Home
+testHome =
+  Home
+    { uuid = "some-uuid",
+      homeDataKey = "datakey",
+      ownerId = "owner",
+      createdAt = someTime,
+      state = Verified,
+      oauthState = Nothing,
+      accessToken = Just "token",
+      refreshToken = Just "refreshToken",
+      accessExpiry = Just someTime,
+      refreshExpiry = Just someTime,
+      hueUsername = Just "username"
+    }
 
 isErrorContaining :: String -> Either String a -> Bool
 isErrorContaining desired (Left actual) = desired `isInfixOf` actual

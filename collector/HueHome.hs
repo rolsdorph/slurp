@@ -20,11 +20,33 @@ import Network.HTTP.Client (newManager)
 
 import Types as T
 
+hueBridgeApi :: BridgeHost
+hueBridgeApi = "api.meethue.com" -- TODO: read from config
+
+collect :: (HasLogger m, HasHttp m) => Home -> m (Either String SourceData)
+collect home = do
+  let maybeToken = accessToken home
+  let maybeUsername = hueUsername home
+  case (maybeToken, maybeUsername) of
+    (Just token, Just username) -> do
+      (fmap . fmap) (toSourceData home) (collect' hueBridgeApi username (Just token))
+    _ -> return $ Left "Username or token missing, not able to collect home"
+
+toSourceData :: Home -> [Light] -> SourceData
+toSourceData home lights =
+  SourceData
+    { sourceId = uuid home,
+      sourceOwnerId = ownerId home,
+      datakey = homeDataKey home,
+      datapoints = map toDataPoint lights
+    }
+
+
 type BridgeUsername = String
 type BridgeHost = String
 type Token = String
-collect :: (HasHttp m) => BridgeHost -> BridgeUsername -> Maybe Token -> m (Either String [Light])
-collect host username token = do
+collect' :: (HasHttp m) => BridgeHost -> BridgeUsername -> Maybe Token -> m (Either String [Light])
+collect' host username token = do
   lights <- getLights host username token
   return $ lights >>= parseLights
 
