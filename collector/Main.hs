@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
@@ -13,24 +14,25 @@ import           Data.Aeson.Types
 import           Data.List
 import qualified Data.Text                     as T
 import           Data.Time.Clock
+import qualified Data.ByteString.Lazy          as LB
 import qualified Network.AMQP                  as Q
 import           Text.Printf
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
-import           SimpleSourceDB
-import           HomeDB
-import           UserDB
+import qualified SimpleSourceDB
+import qualified HomeDB
+import qualified UserDB
 import           HueHome
 import           Secrets
 import           Types
 import           UserNotification
 import qualified SimpleSource as SS
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Except (runExceptT, MonadIO, ExceptT)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, header, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
 import Control.Exception (catch)
-import Control.Monad.Reader (ReaderT, asks, liftIO, runReaderT)
+import Control.Monad.Reader (ReaderT, asks, liftIO, runReaderT, MonadReader, ask)
 
 loggerName = "Collector"
 
@@ -68,6 +70,68 @@ main = do
     (Just config) -> runReaderT app config
     Nothing -> emergencyM loggerName "User notification queue missing, not starting"
 
+data Env = Env {
+    envGetAllUsers :: IO [User]
+  , envGetUserSs :: String -> ExceptT LB.ByteString IO [SimpleShallowJsonSource]
+  , envGetUserHomes :: String -> IO [Home]
+  , envCollectHome :: Home -> IO (Either String SourceData)
+  , envCollectSs :: SimpleShallowJsonSource -> IO (Either String SourceData)
+  , envLogInfo :: String -> IO ()
+  , envLogError :: String -> IO ()
+  , envPushData :: SourceData -> IO ()
+  , envNotify :: UserId -> Value -> IO ()
+}
+
+class HasUsers a where
+  getAllUsers :: a -> IO [User]
+
+class HasSimpleSources a where
+  getUserSimpleSources :: a -> (String -> ExceptT LB.ByteString IO [SimpleShallowJsonSource])
+
+class HasHomes a where
+  getUserHomes :: a -> (String -> IO [Home])
+
+class HasSimpleSourceCollector a where
+  getSsCollector :: a -> (SimpleShallowJsonSource -> IO (Either String SourceData))
+
+class HasHueHomeCollector a where
+  getHomeCollector :: a -> (Home -> IO (Either String SourceData))
+
+class HasIOLogger a where
+  getInfoLog :: a -> String -> IO ()
+  getErrorLog :: a -> String -> IO ()
+
+class CanPushData a where
+  getDataPusher :: a -> DataQueuePusher
+
+class CanNotifyUsers a where
+  getUserNotifier :: a -> (UserId -> Value -> IO())
+
+instance HasUsers Env where
+  getAllUsers = envGetAllUsers
+
+instance HasSimpleSources Env where
+  getUserSimpleSources = envGetUserSs
+
+instance HasHomes Env where
+  getUserHomes = envGetUserHomes
+
+instance HasSimpleSourceCollector Env where
+  getSsCollector = envCollectSs
+
+instance HasHueHomeCollector Env where
+  getHomeCollector = envCollectHome
+
+instance HasIOLogger Env where
+  getInfoLog = envLogInfo
+  getErrorLog = envLogError
+
+instance CanPushData Env where
+  getDataPusher = envPushData
+
+instance CanNotifyUsers Env where
+  getUserNotifier = envNotify
+
 app :: ReaderT QueueConfig IO ()
 app = do
     host' <- asks hostname
@@ -86,7 +150,19 @@ app = do
     liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notificationsQueue }
     liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueue }
 
-    publishJob      <- liftIO . async $ publishAll userNotificationVar dataEventsVar
+    let env = Env {
+        envGetAllUsers = UserDB.getAllUsers
+      , envGetUserSs = SimpleSourceDB.getUserSimpleSources
+      , envGetUserHomes = HomeDB.getUserHomes
+      , envCollectHome = runCollector . HueHome.collect
+      , envCollectSs = runCollector . SS.collect
+      , envLogInfo = infoM loggerName
+      , envLogError = errorM loggerName
+      , envPushData = putMVar dataEventsVar
+      , envNotify = notify userNotificationVar
+    }
+
+    publishJob      <- liftIO . async $ runReaderT publishAll env
 
     userNotificationJob <- liftIO . async $ publishNotifications
         (userNotificationVar :: MVar MessageToUser)
@@ -101,65 +177,84 @@ app = do
     liftIO $ wait publishJob
 
 -- Publishes data from all user sources to the data queue
-publishAll :: MVar MessageToUser -> MVar SourceData -> IO ()
-publishAll notificationVar dataVar = forever $ do
-    infoM loggerName "Fetching users..."
-    users <- getAllUsers
+publishAll :: (MonadIO m, MonadReader Env m) => m ()
+publishAll = forever $ do
+    infoLog <- asks getInfoLog
+    userGetter <- asks getAllUsers
 
-    forM_ users $ publishForUser notificationVar dataVar
-    forM_ users $ publishSSForUser notificationVar dataVar
+    liftIO $ infoLog "Fetching users..."
+    users <- liftIO userGetter
 
-    infoM loggerName "All done, soon looping again!"
+    forM_ users publishForUser
+    forM_ users publishSSForUser
 
-    threadDelay (1000 * 1000 * 10) -- 10s
+    liftIO $ infoLog "All done, soon looping again!"
+
+    liftIO $ threadDelay (1000 * 1000 * 10) -- 10s
 
 -- Publishes data from all user simple sources to the data queue
-publishSSForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
-publishSSForUser notificationVar dataVar user = do
-    maybeSources <- runExceptT (getUserSimpleSources $ userId user)
+publishSSForUser :: (MonadIO m,
+                     MonadReader env m,
+                     HasIOLogger env,
+                     CanNotifyUsers env,
+                     CanPushData env,
+                     HasSimpleSources env,
+                     HasSimpleSourceCollector env) => User -> m ()
+publishSSForUser user = do
+    env <- ask
+    maybeSources <- liftIO . runExceptT $ getUserSimpleSources env (userId user)
 
     case maybeSources of
-      (Left err) -> errorM loggerName (show err)
+      (Left err) -> liftIO $ getErrorLog env (show err)
       (Right sources) -> do
-          let userNotifyer = notify notificationVar $ userId user
-          let dataQueuePusher = putMVar dataVar
+          liftIO $ getInfoLog env "Collecting simple sources..."
+          forM_ sources collectSimpleSource
 
-          infoM loggerName "Collecting simple sources..."
-          forM_ sources (collectSimpleSource userNotifyer dataQueuePusher)
-
-          infoM loggerName "Collected simple sources!"
+          liftIO $ getInfoLog env "Collected simple sources!"
 
 collectSimpleSource
-    :: UserNotifier -> DataQueuePusher -> SimpleShallowJsonSource -> IO ()
-collectSimpleSource notifyUser notifyDataQueue source = do
-    sourceData <- runCollector $ SS.collect source
+    :: (MonadIO m,
+        MonadReader env m,
+        HasIOLogger env,
+        CanNotifyUsers env,
+        CanPushData env,
+        HasSimpleSourceCollector env) => SimpleShallowJsonSource -> m ()
+collectSimpleSource source = do
+    env <- ask
+    sourceData <- liftIO $ getSsCollector env source
 
     case sourceData of
-         (Left err) -> errorM loggerName $ "Failed to collect data: " <> err
+         (Left err) -> liftIO $ getErrorLog env ("Failed to collect data: " <> err)
          (Right sd) -> do
             -- Notify the user that we've collected it
-            sourcePayload <- buildSimpleSourcePayload source
-            notifyUser sourcePayload
+            sourcePayload <- liftIO $ buildSimpleSourcePayload source
+            liftIO $ getUserNotifier env (sourceOwnerId sd) sourcePayload
 
             -- Stick the data on the data queue
-            notifyDataQueue sd
+            liftIO $ getDataPusher env sd
 
-            infoM loggerName "Published simple data"
+            liftIO $ getInfoLog env "Published simple data"
 
 
 -- Publishes data from all user homes to the data queue
-publishForUser :: MVar MessageToUser -> MVar SourceData -> User -> IO ()
-publishForUser notificationVar dataVar user = do
-    infoM loggerName "Fetching verified user homes..."
-    homes <- getUserHomes (userId user)
+publishForUser :: (MonadIO m
+                  , MonadReader env m
+                  , HasIOLogger env
+                  , HasHomes env
+                  , CanNotifyUsers env
+                  , CanPushData env
+                  , HasHueHomeCollector env) =>
+                  User -> m ()
+publishForUser user = do
+    env <- ask
 
-    let userNotifyer = notify notificationVar $ userId user
-    let dataQueuePusher = putMVar dataVar
+    liftIO $ getInfoLog env "Fetching verified user homes..."
+    homes <- liftIO $ getUserHomes env (userId user)
 
-    infoM loggerName "Collecting metrics..."
-    forM_ homes (collectHome userNotifyer dataQueuePusher)
+    liftIO $ getInfoLog env "Collecting metrics..."
+    forM_ homes collectHome
 
-    infoM loggerName "Done!"
+    liftIO $ getInfoLog env "Done!"
 
 buildHomePayload :: Home -> IO Value
 buildHomePayload home = do
@@ -184,20 +279,28 @@ buildSimpleSourcePayload source = do
 type DataQueuePusher = SourceData -> IO ()
 
 -- Publishes data from the given home to the data queue
-collectHome :: UserNotifier -> DataQueuePusher -> Home -> IO ()
-collectHome notifyUser notifyDataQueue home = do
+collectHome :: (MonadIO m
+               , MonadReader env m
+               , HasIOLogger env
+               , CanNotifyUsers env
+               , CanPushData env
+               , HasHueHomeCollector env) =>
+                Home -> m ()
+collectHome home = do
+  env <- ask
+
   -- Get the data
-  maybeSourceData <- runCollector $ collect home
+  maybeSourceData <- liftIO $ getHomeCollector env home
   case maybeSourceData of
     (Right sourceData) -> do
-      infoM loggerName "Collected light data"
+      liftIO $ getInfoLog env "Collected light data"
 
       -- Notify the user that we've collected it
-      homePayload <- buildHomePayload home
-      notifyUser homePayload
+      homePayload <- liftIO $ buildHomePayload home
+      liftIO $ getUserNotifier env (ownerId home) homePayload
 
       -- Stick the data on the data queue
-      notifyDataQueue sourceData
+      liftIO $ getDataPusher env sourceData
 
-      infoM loggerName "Published light data"
-    (Left err) -> errorM loggerName err
+      liftIO $ getInfoLog env "Published light data"
+    (Left err) -> liftIO $ getErrorLog env err
