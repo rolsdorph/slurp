@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b7ca073d21cd831fbaaa46194ebd30f6adf5e50cd4172d812b2d6515466fb87b
+-- hash: 8414078551127d027d24796616284ec6eed8265edf37ff73bbdc4252f36a8f43
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -90,6 +90,7 @@ library
 executable hue-metrics-collector-exe
   main-is: Main.hs
   other-modules:
+      Collector
       HueHome
       SimpleSource
       Paths_minimal_hue_metrics_website
@@ -339,6 +340,7 @@ test-suite collector-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Collector
       HueHome
       Main
       SimpleSource
