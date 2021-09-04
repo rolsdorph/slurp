@@ -53,8 +53,7 @@ main = do
             -- Listen for user notifications, forward them to the queue
             userNotificationJob <- async $ publishNotifications
                 (userNotificationVar :: MVar MessageToUser)
-                queueChannel
-                (notiQueueName queueConfig)
+                (rmqPushFunction queueChannel (notiQueueName queueConfig))
 
             -- Listen for data, put it on the MVar
             receiveEvents queueConfig sourceDataMVar

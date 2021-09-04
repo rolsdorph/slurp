@@ -80,6 +80,8 @@ data Env = Env {
   , envLogError :: String -> IO ()
   , envPushData :: SourceData -> IO ()
   , envNotify :: UserId -> Value -> IO ()
+  , envPublishNotification :: MessageToUser -> IO ()
+  , envPublishData :: SourceData -> IO ()
 }
 
 class HasUsers a where
@@ -170,19 +172,19 @@ app = do
       , envLogError = errorM loggerName
       , envPushData = putMVar dataEventsVar
       , envNotify = notify userNotificationVar
+      , envPublishNotification = rmqPushFunction queueChannel notificationsQueue
+      , envPublishData = rmqPushFunction queueChannel dataQueue
     }
 
     publishJob      <- liftIO . async $ runReaderT publishAll env
 
     userNotificationJob <- liftIO . async $ publishNotifications
         (userNotificationVar :: MVar MessageToUser)
-        queueChannel
-        notificationsQueue
+        (envPublishNotification env)
 
     dataEventsJob <- liftIO . async $ publishNotifications
         (dataEventsVar :: MVar SourceData)
-        queueChannel
-        dataQueue
+        (envPublishData env)
 
     liftIO $ wait publishJob
 

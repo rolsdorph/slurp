@@ -16,9 +16,12 @@ notify :: MVar MessageToUser -> String -> Value -> IO ()
 notify notificationVar userId payload =
     putMVar notificationVar $ MessageToUser userId payload
 
--- Waits for messages and pushes them onto the given channel
-publishNotifications :: ToJSON a => MVar a -> Q.Channel -> T.Text -> IO ()
-publishNotifications messageVar chan routingKey = forever $ do
+-- Waits for messages and pushes them using the given function
+publishNotifications :: ToJSON a => MVar a -> (a -> IO ()) -> IO ()
+publishNotifications messageVar pushFunction = forever $ do
     msg <- takeMVar messageVar
-    Q.publishMsg chan "" routingKey $ Q.newMsg { Q.msgBody = encode msg } -- "" = default exchange
+    pushFunction msg
 
+-- Publishes the given message onto the given RMQ channel
+rmqPushFunction :: (ToJSON a) => Q.Channel -> T.Text -> (a -> IO ())
+rmqPushFunction chan routingKey = \msg -> void (Q.publishMsg chan "" routingKey $ Q.newMsg { Q.msgBody = encode msg }) -- "" = default exchange
