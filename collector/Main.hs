@@ -67,7 +67,33 @@ main = do
 
   maybeConfig <- readUserNotificationQueueConfig
   case maybeConfig of
-    (Just config) -> runReaderT app config
+    (Just config) -> do
+      userNotificationVar <- liftIO newEmptyMVar
+      dataEventsVar <- liftIO newEmptyMVar
+
+      queueConnection <- liftIO $ Q.openConnection (hostname config) (vhost config) (username config) (password config)
+      queueChannel    <- liftIO $ Q.openChannel queueConnection
+
+      liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = (notiQueueName config) }
+      liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = (dataQueueName config) }
+
+      let env = Env {
+          envGetAllUsers = UserDB.getAllUsers
+        , envGetUserSs = SimpleSourceDB.getUserSimpleSources
+        , envGetUserHomes = HomeDB.getUserHomes
+        , envCollectHome = runCollector . HueHome.collect
+        , envCollectSs = runCollector . SS.collect
+        , envLogInfo = infoM loggerName
+        , envLogError = errorM loggerName
+        , envReadEvent = takeMVar dataEventsVar
+        , envReadNotification = takeMVar userNotificationVar
+        , envPushData = putMVar dataEventsVar
+        , envNotify = notify userNotificationVar
+        , envPublishNotification = rmqPushFunction queueChannel (notiQueueName config)
+        , envPublishData = rmqPushFunction queueChannel (dataQueueName config)
+      }
+
+      runReaderT app env
     Nothing -> emergencyM loggerName "User notification queue missing, not starting"
 
 data Env = Env {
@@ -80,6 +106,8 @@ data Env = Env {
   , envLogError :: String -> IO ()
   , envPushData :: SourceData -> IO ()
   , envNotify :: UserId -> Value -> IO ()
+  , envReadEvent :: IO SourceData
+  , envReadNotification :: IO MessageToUser
   , envPublishNotification :: MessageToUser -> IO ()
   , envPublishData :: SourceData -> IO ()
 }
@@ -144,46 +172,17 @@ instance CanPushData Env where
 instance CanNotifyUsers Env where
   getUserNotifier = envNotify
 
-app :: ReaderT QueueConfig IO ()
+app :: (MonadIO m, MonadReader Env m) => m ()
 app = do
-    host' <- asks hostname
-    vhost' <- asks vhost
-    username' <- asks username
-    password' <- asks password
-    notificationsQueue <- asks notiQueueName
-    dataQueue <- asks dataQueueName
-
-    userNotificationVar <- liftIO newEmptyMVar
-    dataEventsVar <- liftIO newEmptyMVar
-
-    queueConnection <- liftIO $ Q.openConnection host' vhost' username' password'
-    queueChannel    <- liftIO $ Q.openChannel queueConnection
-
-    liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notificationsQueue }
-    liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueue }
-
-    let env = Env {
-        envGetAllUsers = UserDB.getAllUsers
-      , envGetUserSs = SimpleSourceDB.getUserSimpleSources
-      , envGetUserHomes = HomeDB.getUserHomes
-      , envCollectHome = runCollector . HueHome.collect
-      , envCollectSs = runCollector . SS.collect
-      , envLogInfo = infoM loggerName
-      , envLogError = errorM loggerName
-      , envPushData = putMVar dataEventsVar
-      , envNotify = notify userNotificationVar
-      , envPublishNotification = rmqPushFunction queueChannel notificationsQueue
-      , envPublishData = rmqPushFunction queueChannel dataQueue
-    }
-
+    env <- ask
     publishJob      <- liftIO . async $ runReaderT publishAll env
 
     userNotificationJob <- liftIO . async $ publishNotifications
-        (userNotificationVar :: MVar MessageToUser)
+        (envReadNotification env)
         (envPublishNotification env)
 
     dataEventsJob <- liftIO . async $ publishNotifications
-        (dataEventsVar :: MVar SourceData)
+        (envReadEvent env)
         (envPublishData env)
 
     liftIO $ wait publishJob
