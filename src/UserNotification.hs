@@ -18,9 +18,7 @@ notify notificationVar userId payload =
 
 -- Waits for messages and pushes them using the given function
 publishNotifications :: ToJSON a => IO a -> (a -> IO ()) -> IO ()
-publishNotifications messageReceiver pushFunction = forever $ do
-    msg <- messageReceiver
-    pushFunction msg
+publishNotifications messageReceiver pushFunction = forever $ messageReceiver >>= pushFunction
 
 -- Publishes the given message onto the given RMQ channel
 rmqPushFunction :: (ToJSON a) => Q.Channel -> T.Text -> (a -> IO ())
