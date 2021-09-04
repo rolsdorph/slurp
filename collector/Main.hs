@@ -101,6 +101,16 @@ class HasIOLogger a where
   getInfoLog :: a -> String -> IO ()
   getErrorLog :: a -> String -> IO ()
 
+logInfo :: (MonadIO m, MonadReader env m, HasIOLogger env) => String -> m ()
+logInfo s = do
+  logger <- asks getInfoLog
+  liftIO $ logger s
+
+logError :: (MonadIO m, MonadReader env m, HasIOLogger env) => String -> m ()
+logError s = do
+  logger <- asks getErrorLog
+  liftIO $ logger s
+
 class CanPushData a where
   getDataPusher :: a -> DataQueuePusher
 
@@ -179,16 +189,15 @@ app = do
 -- Publishes data from all user sources to the data queue
 publishAll :: (MonadIO m, MonadReader Env m) => m ()
 publishAll = forever $ do
-    infoLog <- asks getInfoLog
     userGetter <- asks getAllUsers
 
-    liftIO $ infoLog "Fetching users..."
+    logInfo "Fetching users..."
     users <- liftIO userGetter
 
     forM_ users publishForUser
     forM_ users publishSSForUser
 
-    liftIO $ infoLog "All done, soon looping again!"
+    logInfo "All done, soon looping again!"
 
     liftIO $ threadDelay (1000 * 1000 * 10) -- 10s
 
@@ -205,12 +214,12 @@ publishSSForUser user = do
     maybeSources <- liftIO . runExceptT $ getUserSimpleSources env (userId user)
 
     case maybeSources of
-      (Left err) -> liftIO $ getErrorLog env (show err)
+      (Left err) -> logError (show err)
       (Right sources) -> do
-          liftIO $ getInfoLog env "Collecting simple sources..."
+          logInfo "Collecting simple sources..."
           forM_ sources collectSimpleSource
 
-          liftIO $ getInfoLog env "Collected simple sources!"
+          logInfo "Collected simple sources!"
 
 collectSimpleSource
     :: (MonadIO m,
@@ -224,7 +233,7 @@ collectSimpleSource source = do
     sourceData <- liftIO $ getSsCollector env source
 
     case sourceData of
-         (Left err) -> liftIO $ getErrorLog env ("Failed to collect data: " <> err)
+         (Left err) -> logError $ "Failed to collect data: " <> err
          (Right sd) -> do
             -- Notify the user that we've collected it
             sourcePayload <- liftIO $ buildSimpleSourcePayload source
@@ -233,7 +242,7 @@ collectSimpleSource source = do
             -- Stick the data on the data queue
             liftIO $ getDataPusher env sd
 
-            liftIO $ getInfoLog env "Published simple data"
+            logInfo "Published simple data"
 
 
 -- Publishes data from all user homes to the data queue
@@ -248,13 +257,13 @@ publishForUser :: (MonadIO m
 publishForUser user = do
     env <- ask
 
-    liftIO $ getInfoLog env "Fetching verified user homes..."
+    logInfo "Fetching verified user homes..."
     homes <- liftIO $ getUserHomes env (userId user)
 
-    liftIO $ getInfoLog env "Collecting metrics..."
+    logInfo "Collecting metrics..."
     forM_ homes collectHome
 
-    liftIO $ getInfoLog env "Done!"
+    logInfo "Done!"
 
 buildHomePayload :: Home -> IO Value
 buildHomePayload home = do
@@ -293,7 +302,7 @@ collectHome home = do
   maybeSourceData <- liftIO $ getHomeCollector env home
   case maybeSourceData of
     (Right sourceData) -> do
-      liftIO $ getInfoLog env "Collected light data"
+      logInfo "Collected light data"
 
       -- Notify the user that we've collected it
       homePayload <- liftIO $ buildHomePayload home
@@ -302,5 +311,5 @@ collectHome home = do
       -- Stick the data on the data queue
       liftIO $ getDataPusher env sourceData
 
-      liftIO $ getInfoLog env "Published light data"
-    (Left err) -> liftIO $ getErrorLog env err
+      logInfo "Published light data"
+    (Left err) -> logError err
