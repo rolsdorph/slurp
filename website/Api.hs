@@ -471,12 +471,12 @@ influxSinkFrom currentUser params = do
       <*> pure currentTime
 
 -- Attempts to construct a simple JSON source
-simpleSourceFrom :: (MonadTime m) => User -> [Param] -> ExceptT L.ByteString m SimpleShallowJsonSource
+simpleSourceFrom :: (MonadTime m) => User -> [Param] -> ExceptT L.ByteString m SimpleSourceDefinition
 simpleSourceFrom currentUser params = do
   currentTime <- lift currentTime
 
   liftEither $
-    SimpleShallowJsonSource Nothing
+    SimpleSourceDefinition
       <$> (C.unpack . snd <$> lookupParam "datakey" params)
       <*> return (userId currentUser)
       <*> return currentTime

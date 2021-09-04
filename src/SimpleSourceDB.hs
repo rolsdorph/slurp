@@ -39,7 +39,7 @@ setupDb = do
 
 class Monad m => MonadSimpleSource m where
   -- TODO: Can we generalize this rather than explicitly returning ExceptT?
-  storeSimpleSource :: SimpleShallowJsonSource -> ExceptT BL.ByteString m SimpleShallowJsonSource
+  storeSimpleSource :: SimpleSourceDefinition -> ExceptT BL.ByteString m SimpleShallowJsonSource
   getUserSimpleSources :: String -> ExceptT BL.ByteString m [SimpleShallowJsonSource]
 
 instance MonadSimpleSource IO where
@@ -67,7 +67,7 @@ instance MonadSimpleSource IO where
       liftIO $ disconnect conn
 
       case numInserted of
-          1 -> return (source { genericSourceId = Just uuid })
+          1 -> return (SimpleShallowJsonSource { genericSourceId = uuid, ssDefinition = source })
           _ -> throwError "Failed to store source"
 
   getUserSimpleSources ownerId = do
@@ -77,20 +77,22 @@ instance MonadSimpleSource IO where
       sources <- liftIO $ fetchAllRowsAL stmt
       return $ mapMaybe parseSimpleSourceRow sources
 
+
 parseSimpleSourceRow :: [(String, SqlValue)] -> Maybe SimpleShallowJsonSource
 parseSimpleSourceRow vals = do
-    let maybeTags   = (decode <=< valFrom "tagMappings") vals
-    let maybeFields = (decode <=< valFrom "fieldMappings") vals
+  let maybeTags = (decode <=< valFrom "tagMappings") vals
+  let maybeFields = (decode <=< valFrom "fieldMappings") vals
 
-    case (maybeTags, maybeFields) of
-        (Just tags, Just fields) ->
-            SimpleShallowJsonSource
-                <$> valFrom "uuid"       vals
-                <*> valFrom "datakey"    vals
-                <*> valFrom "ownerId"    vals
-                <*> valFrom "createdAt"  vals
-                <*> valFrom "url"        vals
+  case (maybeTags, maybeFields) of
+    (Just tags, Just fields) ->
+      SimpleShallowJsonSource
+        <$> valFrom "uuid" vals
+        <*> ( SimpleSourceDefinition <$> valFrom "datakey" vals
+                <*> valFrom "ownerId" vals
+                <*> valFrom "createdAt" vals
+                <*> valFrom "url" vals
                 <*> valFrom "authHeader" vals
                 <*> tags
                 <*> fields
-        _ -> Nothing
+            )
+    _ -> Nothing

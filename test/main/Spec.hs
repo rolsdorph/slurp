@@ -12,7 +12,7 @@ import Network.Wai (Response, responseStatus)
 import Network.Wai.Parse (Param)
 import SimpleSourceDB
 import Test.Hspec (Spec, describe, hspec, it, shouldSatisfy)
-import Types (AuthType (Insecure), User (..))
+import Types (AuthType (Insecure), SimpleShallowJsonSource (..), User (..))
 import Util (MonadTime, currentTime)
 
 main :: IO ()
@@ -101,7 +101,7 @@ instance MonadTime WorkingStore where
   currentTime = return $ UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
 
 instance MonadSimpleSource WorkingStore where
-  storeSimpleSource source = return source
+  storeSimpleSource source = return SimpleShallowJsonSource {genericSourceId = "some-id", ssDefinition = source}
   getUserSimpleSources _ = return []
 
 runWorkingStore :: WorkingStore a -> a

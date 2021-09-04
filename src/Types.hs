@@ -23,6 +23,7 @@ module Types
     , MessageToUser(..)
     , JsonMapping
     , MappedValue
+    , SimpleSourceDefinition (..)
     , SimpleShallowJsonSource (..)
     , HasHttp (..)
     , HasLogger (..)
@@ -259,7 +260,11 @@ type JsonMapping = (JsonPath, TagOrFieldName)
 type MappedValue = (TagOrFieldName, DataPointValue)
 
 data SimpleShallowJsonSource = SimpleShallowJsonSource {
-    genericSourceId :: Maybe String,
+    genericSourceId :: String,
+    ssDefinition :: SimpleSourceDefinition
+}
+
+data SimpleSourceDefinition = SimpleSourceDefinition {
     genericDataKey :: String,
     shallowOwnerId :: String, -- TODO: Figure out how to properly deal with these conflicts.. are records really the way to go?
     shallowCreatedAt :: UTCTime,
@@ -270,7 +275,7 @@ data SimpleShallowJsonSource = SimpleShallowJsonSource {
 }
 
 instance ToJSON SimpleShallowJsonSource where
-    toJSON (SimpleShallowJsonSource uuid datakey _ createdAt url _ tagMappings fieldMappings) =
+    toJSON (SimpleShallowJsonSource uuid (SimpleSourceDefinition datakey _ createdAt url _ tagMappings fieldMappings)) =
         object
             [ "id" .= uuid
             , "datakey" .= datakey

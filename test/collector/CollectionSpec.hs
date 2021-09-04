@@ -11,6 +11,7 @@ import Data.Functor.Identity
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import qualified Data.Text as T
 import Data.Vector (fromList)
 import qualified HueHome as HH
 import qualified SimpleSource as SS
@@ -76,7 +77,7 @@ spec :: Spec
 spec = do
   describe "Simple Source Collector" $ do
     it "Returns an error when encountering a malformed URL" $ do
-      let res = runSimpleStack $ SS.collect (testSource {url = "MALFORMED"})
+      let res = runSimpleStack $ SS.collect (testSourceWithUrl "MALFORMED")
       res `shouldSatisfy` isErrorContaining "collection URL"
 
     it "Returns an error when the JSON fetch fails" $ do
@@ -87,10 +88,6 @@ spec = do
       let res = runInvalidJsonStack $ SS.collect testSource
       res `shouldSatisfy` isErrorContaining "not a valid json value"
 
-    it "Returns an error if the source does not have an ID" $ do
-      let res = runSimpleStack $ SS.collect testSource {genericSourceId = Nothing}
-      res `shouldSatisfy` isErrorContaining "Source ID missing"
-
     it "Extracts tags and fields from the result JSON" $ do
       let res = runSimpleStack $ SS.collect testSource
       res `shouldSatisfy` isRight
@@ -98,8 +95,8 @@ spec = do
         (Left _) -> fail "Should never happen"
         (Right collectedSource) -> do
           sourceId collectedSource `shouldBe` testSourceId
-          sourceOwnerId collectedSource `shouldBe` shallowOwnerId testSource
-          datakey collectedSource `shouldBe` genericDataKey testSource
+          sourceOwnerId collectedSource `shouldBe` shallowOwnerId (ssDefinition testSource)
+          datakey collectedSource `shouldBe` genericDataKey (ssDefinition testSource)
 
           datapoints collectedSource
             `shouldBe` [ DataPoint
@@ -165,14 +162,23 @@ testSourceId = "some-id"
 testSource :: SimpleShallowJsonSource
 testSource =
   SimpleShallowJsonSource
-    { genericSourceId = Just testSourceId,
-      genericDataKey = "some-key",
-      shallowOwnerId = "1234",
-      shallowCreatedAt = someTime,
-      url = "https://localhost:1337/source.json",
-      authHeader = "auth here",
-      tagMappings = [("key1", "mappedKey1")],
-      fieldMappings = [("key2", "mappedKey2"), ("key3", "mappedKey3")]
+    { genericSourceId = testSourceId,
+      ssDefinition =
+        SimpleSourceDefinition
+          { genericDataKey = "some-key",
+            shallowOwnerId = "1234",
+            shallowCreatedAt = someTime,
+            url = "https://localhost:1337/source.json",
+            authHeader = "auth here",
+            tagMappings = [("key1", "mappedKey1")],
+            fieldMappings = [("key2", "mappedKey2"), ("key3", "mappedKey3")]
+          }
+    }
+
+testSourceWithUrl :: T.Text -> SimpleShallowJsonSource
+testSourceWithUrl u =
+  testSource
+    { ssDefinition = (ssDefinition testSource) {url = u}
     }
 
 invalidResponse :: LB.ByteString

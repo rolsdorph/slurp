@@ -23,41 +23,39 @@ import           Util
 -- Extracts the desired tags and fields from the given JSON source
 collect :: (HasHttp m, HasLogger m) => SimpleShallowJsonSource -> m (Either String SourceData)
 collect source = do
-    let maybeUri = mkURI >=> useHttpsURI $ url source
+    let maybeUri = mkURI >=> useHttpsURI $ url (ssDefinition source)
     case maybeUri of
         (Just (uri, _)) -> do
-            res <- simpleGet uri (header "Authorization" (authHeader source))
+            res <- simpleGet uri (header "Authorization" (authHeader (ssDefinition source)))
 
             let decoded = res >>= eitherDecode
             case decoded of
-                (Right val) -> extract source val
+                (Right val) -> Right <$> extract source val
                 (Left err) -> return $ Left err
 
         _ -> return $ Left "Failed to parse collection URL"
 
-extract
-    :: (HasLogger m) => SimpleShallowJsonSource -> Value -> m (Either String SourceData)
-extract definition value = do
-    let tagsOrErrors   = List.map (getValue value) $ tagMappings definition
-    let fieldsOrErrors = List.map (getValue value) $ fieldMappings definition
+extract ::
+  (HasLogger m) => SimpleShallowJsonSource -> Value -> m SourceData
+extract (SimpleShallowJsonSource ssId definition) value = do
+  let tagsOrErrors = List.map (getValue value) $ tagMappings definition
+  let fieldsOrErrors = List.map (getValue value) $ fieldMappings definition
 
-    logErrors' tagsOrErrors
-    logErrors' fieldsOrErrors
+  logErrors' tagsOrErrors
+  logErrors' fieldsOrErrors
 
-    let tags          = mapMaybe rightOrNothing tagsOrErrors
-    let fields        = mapMaybe rightOrNothing fieldsOrErrors
+  let tags = mapMaybe rightOrNothing tagsOrErrors
+  let fields = mapMaybe rightOrNothing fieldsOrErrors
 
-    let dp            = DataPoint { tags = tags, fields = fields }
+  let dp = DataPoint {tags = tags, fields = fields}
 
-    let maybeSourceId = genericSourceId definition
-    case maybeSourceId of
-        (Just sourceId) ->return $ Right (SourceData {
-                                                sourceId   = sourceId,
-                                                sourceOwnerId = shallowOwnerId definition,
-                                                datakey    = genericDataKey definition,
-                                                datapoints = [dp]
-                                  })
-        _ -> return $ Left "Source ID missing, skipping source"
+  return
+    SourceData
+      { sourceId = ssId,
+        sourceOwnerId = shallowOwnerId definition,
+        datakey = genericDataKey definition,
+        datapoints = [dp]
+      }
 
 getValue :: Value -> JsonMapping -> Either String MappedValue
 getValue value mapping = mapRight (snd mapping, )
