@@ -344,6 +344,8 @@ test-suite collector-test
       HueHome
       Main
       SimpleSource
+      CollectionSpec
+      CollectorSpec
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       collector
