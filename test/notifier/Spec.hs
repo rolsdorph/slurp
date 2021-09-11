@@ -16,6 +16,7 @@ import qualified Network.AMQP as Q
 import Network.WebSockets (Connection, ControlMessage (..), DataMessage (Text), Message (..), runClient)
 import Network.WebSockets.Connection (receive, receiveDataMessage, sendTextData)
 import qualified Notifier
+import RabbitMQ
 import System.Timeout (timeout)
 import Test.Hspec (Spec, around, describe, hspec, it, shouldBe, shouldSatisfy)
 import Types
@@ -155,7 +156,7 @@ waitForConnectionReady = do
     (Right _) -> return ()
     _ -> waitForConnectionReady
 
-startServer :: IO (ThreadId, Notifier.QueueConsumer)
+startServer :: IO (ThreadId, QueueConsumer)
 startServer = do
   queueConsumer <- newEmptyMVar
   serverThread <- forkIO $ Notifier.run (userListVerifier [user1, user2, user3]) (putMVar queueConsumer)
@@ -169,7 +170,7 @@ startServer = do
     (Just (), Just consumer) -> return (serverThread, consumer)
     _ -> throwIO $ SetupTimeout setupTimeout
 
-killServer :: (ThreadId, Notifier.QueueConsumer) -> IO ()
+killServer :: (ThreadId, QueueConsumer) -> IO ()
 killServer (threadId, _) = killThread threadId
 
 withWs :: (Connection -> IO a) -> IO a
@@ -178,7 +179,7 @@ withWs = runClient testWsHost testWsPort "/"
 withWsAndServer :: (Connection -> IO a) -> IO a
 withWsAndServer t = bracket startServer killServer (\_ -> withWs t)
 
-withThreeWsAndQC :: ((Connection, Connection, Connection, Notifier.QueueConsumer) -> IO a) -> IO a
+withThreeWsAndQC :: ((Connection, Connection, Connection, QueueConsumer) -> IO a) -> IO a
 withThreeWsAndQC f = bracket startServer killServer (\(_, qc) -> withWs $ \w1 -> withWs $ \w2 -> withWs $ \w3 -> f (w1, w2, w3, qc))
 
 -- * Helper functions for recording and asserting on WebSocket messages

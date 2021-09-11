@@ -13,6 +13,7 @@ import Data.UUID.V4
 import GHC.IO.Handle.FD
 import qualified Network.AMQP as Q
 import Network.WebSockets
+import RabbitMQ
 import System.Log.Handler.Simple
 import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler)
 import Types
@@ -69,23 +70,6 @@ run verifyToken consumerRegistry = do
 
   -- Listen for WebSocket events
   runServer "127.0.0.1" 8090 (app connections verifyToken)
-
-type QueueConsumer = Q.Message -> IO ()
-
-type ConsumerRegistry = QueueConsumer -> IO ()
-
-createConsumerRegistry :: QueueConfig -> IO ConsumerRegistry
-createConsumerRegistry queueConfig = do
-  conn <-
-    Q.openConnection
-      (hostname queueConfig)
-      (vhost queueConfig)
-      (username queueConfig)
-      (password queueConfig)
-  chan <- Q.openChannel conn
-  _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = notiQueueName queueConfig}
-
-  return $ \h -> void (Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck (\(m, _) -> h m))
 
 forwardEvents :: MVar UserConnections -> ConsumerRegistry -> IO ()
 forwardEvents connectionsVar registerConsumer = do
