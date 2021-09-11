@@ -191,6 +191,7 @@ executable hue-metrics-server-exe
 executable influx-pusher-exe
   main-is: Main.hs
   other-modules:
+      InfluxPusher
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       influxpusher

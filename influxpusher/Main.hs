@@ -16,10 +16,14 @@ import           System.Log.Handler.Simple
 
 import           HomeDB
 import           InfluxDB
+import           InfluxPusher
 import           Secrets
 import           Types
 import qualified InfluxPublish as Influx
 import           UserNotification
+import InfluxPublish (InfluxPushResult)
+import RabbitMQ (ConsumerRegistry, createConsumerRegistry)
+import Control.Monad.Reader (MonadReader, MonadIO, runReaderT)
 
 loggerName = "InfluxPusher"
 influxDbName = "home" -- TODO: Move to the database
@@ -34,11 +38,6 @@ main = do
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
         (Just queueConfig) -> do
-            -- Inter-thread communication
-            userNotificationVar <- newEmptyMVar
-            sourceDataMVar      <- newEmptyMVar
-
-            -- AMQP config
             queueConnection     <- Q.openConnection (hostname queueConfig)
                                                     (vhost queueConfig)
                                                     (username queueConfig)
@@ -50,56 +49,25 @@ main = do
             Q.declareQueue queueChannel
                 $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
 
-            -- Listen for user notifications, forward them to the queue
-            userNotificationJob <- async $ publishNotifications
-                (takeMVar userNotificationVar)
-                (rmqPushFunction queueChannel (notiQueueName queueConfig))
+            consumerRegistry <- createConsumerRegistry queueConfig
 
-            -- Listen for data, put it on the MVar
-            receiveEvents queueConfig sourceDataMVar
+            let env = Env {
+              envLogInfo = infoM loggerName,
+              envLogWarn = warningM loggerName,
+              envLogError = errorM loggerName,
+              envGetUserSinks = InfluxDB.getUserInfluxSinks,
+              envInfluxPush = doPush,
+              envPublishNotification = rmqPushFunction queueChannel (notiQueueName queueConfig),
+              envConsumerRegistry = consumerRegistry
+            }
 
-            infoM loggerName "Waiting for data collection events"
-
-            -- Push data from the MVar onto all sinks for the data owner
-            forever $ forwardToInflux sourceDataMVar userNotificationVar
-
+            runReaderT app env
         _ -> emergencyM
             loggerName
             "Notification queue config not found, refusing to start"
 
--- Waits for incoming AMQP events, puts valid ones on the given MVar
-receiveEvents :: QueueConfig -> MVar SourceData -> IO ()
-receiveEvents queueConfig dataVar = do
-    conn <- Q.openConnection (hostname queueConfig)
-                             (vhost queueConfig)
-                             (username queueConfig)
-                             (password queueConfig)
-    chan <- Q.openChannel conn
-    Q.declareQueue chan $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
-
-    Q.consumeMsgs chan (dataQueueName queueConfig) Q.NoAck
-        $ \(msg, envelope) -> do
-              let parsedMsg = eitherDecode $ Q.msgBody msg
-              case parsedMsg of
-                  (Right s@(SourceData _ _ _ _)) -> putMVar dataVar s
-                  (Left err) ->
-                      warningM loggerName $ "Ignoring malformed message " ++ err
-
-    return ()
-
--- Waits for new source data, pushes it onto all relevant user sinks
-forwardToInflux :: MVar SourceData -> MVar MessageToUser -> IO ()
-forwardToInflux dataVar userNotificationVar = do
-    sourceData <- takeMVar dataVar
-    let userNotifier = notify userNotificationVar $ sourceOwnerId sourceData
-
-    sinks <- getUserInfluxSinks $ sourceOwnerId sourceData
-    forM_ sinks $ pushToSink sourceData userNotifier
-
--- Pushes the given data points to the given Influx sink
-pushToSink :: SourceData -> (Value -> IO ())-> InfluxSink -> IO ()
-pushToSink dataToPublish userNotifier sink = do
-  res <-
+doPush :: SourceData -> InfluxSink -> IO InfluxPushResult
+doPush dataToPublish sink =
     Influx.publish
       (T.pack $ influxHost sink)
       (influxPort sink)
@@ -108,20 +76,3 @@ pushToSink dataToPublish userNotifier sink = do
       influxDbName
       (I.Measurement $ T.pack (datakey dataToPublish))
       (datapoints dataToPublish)
-
-  case res of
-    Influx.Success -> do
-      sinkPayload <- buildSinkPayload sink
-      userNotifier sinkPayload
-      infoM loggerName "Pushed to a sink"
-    Influx.Error err -> errorM loggerName $ "Failed to push to sink: " ++ err
-
--- Builds a user notification event payload for a fetch of the given sink
-buildSinkPayload :: InfluxSink -> IO Value
-buildSinkPayload sink = do
-    curTime <- getCurrentTime
-    pure $ object
-        [ "type" .= ("SinkFed" :: String)
-        , "time" .= curTime
-        , "sinkId" .= influxUuid sink
-        ]
