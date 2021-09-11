@@ -9,8 +9,6 @@ import qualified Network.AMQP                  as Q
 
 import           Types
 
-type UserNotifier = Value -> IO ()
-
 -- Puts a message with a given payload/user on the MVar
 notify :: MVar MessageToUser -> String -> Value -> IO ()
 notify notificationVar userId payload =

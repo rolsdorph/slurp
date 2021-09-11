@@ -97,7 +97,7 @@ forwardToInflux dataVar userNotificationVar = do
     forM_ sinks $ pushToSink sourceData userNotifier
 
 -- Pushes the given data points to the given Influx sink
-pushToSink :: SourceData -> UserNotifier -> InfluxSink -> IO ()
+pushToSink :: SourceData -> (Value -> IO ())-> InfluxSink -> IO ()
 pushToSink dataToPublish userNotifier sink = do
   res <-
     Influx.publish
