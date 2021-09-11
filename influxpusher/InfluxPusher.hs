@@ -14,7 +14,7 @@ import qualified InfluxPublish as Influx
 import qualified Network.AMQP as Q
 import RabbitMQ (ConsumerRegistry)
 import Types
-import UserNotification (notify, publishNotifications, rmqPushFunction)
+import UserNotification (notify, publishNotifications)
 
 data Env = Env
   { envGetUserSinks :: UserId -> IO [InfluxSink],
@@ -72,7 +72,7 @@ app = do
   sourceDataMVar <- liftIO newEmptyMVar
 
   -- Listen for user notifications, forward them to the queue
-  userNotificationJob <-
+  _ <-
     liftIO . async $
       publishNotifications
         (takeMVar userNotificationVar)
@@ -113,7 +113,7 @@ receiveEvents registerConsumer dataVar = do
     registerConsumer $ \msg -> do
       let parsedMsg = eitherDecode (Q.msgBody msg)
       case parsedMsg of
-        (Right s@(SourceData _ _ _ _)) -> liftIO $ putMVar dataVar s
+        (Right s@SourceData {}) -> liftIO $ putMVar dataVar s
         (Left err) -> warnLog $ "Ignoring malformed message " ++ err
 
       return ()

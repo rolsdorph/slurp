@@ -2,19 +2,13 @@
 
 module Main where
 
-import           Control.Concurrent.Async
-import           Control.Concurrent.MVar
-import           Control.Monad
-import           Data.Aeson
 import qualified Data.Text                     as T
-import           Data.Time.Clock
 import qualified Database.InfluxDB.Types       as I
 import qualified Network.AMQP                  as Q
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
 
-import           HomeDB
 import           InfluxDB
 import           InfluxPusher
 import           Secrets
@@ -22,10 +16,13 @@ import           Types
 import qualified InfluxPublish as Influx
 import           UserNotification
 import InfluxPublish (InfluxPushResult)
-import RabbitMQ (ConsumerRegistry, createConsumerRegistry)
-import Control.Monad.Reader (MonadReader, MonadIO, runReaderT)
+import RabbitMQ (createConsumerRegistry)
+import Control.Monad.Reader (runReaderT)
 
+loggerName :: String
 loggerName = "InfluxPusher"
+
+influxDbName :: I.Database
 influxDbName = "home" -- TODO: Move to the database
 
 main :: IO ()
@@ -44,9 +41,9 @@ main = do
                                                     (password queueConfig)
             queueChannel <- Q.openChannel queueConnection
 
-            Q.declareQueue queueChannel
+            _ <- Q.declareQueue queueChannel
                 $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
-            Q.declareQueue queueChannel
+            _ <- Q.declareQueue queueChannel
                 $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
 
             consumerRegistry <- createConsumerRegistry queueConfig
