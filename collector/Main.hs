@@ -73,8 +73,8 @@ main = do
       queueConnection <- liftIO $ Q.openConnection (hostname config) (vhost config) (username config) (password config)
       queueChannel    <- liftIO $ Q.openChannel queueConnection
 
-      liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = (notiQueueName config) }
-      liftIO $ Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = (dataQueueName config) }
+      _ <- Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notiQueueName config }
+      _ <- Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueueName config }
 
       let env = Env {
           envGetAllUsers = UserDB.getAllUsers
