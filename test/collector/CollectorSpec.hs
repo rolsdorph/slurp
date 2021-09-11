@@ -18,10 +18,6 @@ baseEnv =
       envCollectSs = const . return $ Left "Not implemented",
       envLogInfo = infoM loggerName,
       envLogError = errorM loggerName,
-      envReadEvent = return undefined,
-      envReadNotification = return undefined,
-      envPushData = const $ return (),
-      envNotify = \_ _ -> return (),
       envPublishNotification = const $ return (),
       envPublishData = const $ return ()
     }

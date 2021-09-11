@@ -4,7 +4,7 @@
 
 module Collector where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (newEmptyMVar, takeMVar, threadDelay, MVar, putMVar)
 import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.Except (ExceptT, MonadIO, runExceptT)
@@ -23,13 +23,13 @@ data Env = Env
     envCollectSs :: SimpleShallowJsonSource -> IO (Either String SourceData),
     envLogInfo :: String -> IO (),
     envLogError :: String -> IO (),
-    envPushData :: SourceData -> IO (),
-    envNotify :: UserId -> Value -> IO (),
-    envReadEvent :: IO SourceData,
-    envReadNotification :: IO MessageToUser,
     envPublishNotification :: MessageToUser -> IO (),
     envPublishData :: SourceData -> IO ()
   }
+
+type UserNotifier = UserId -> Value -> IO ()
+
+type DataPusher = SourceData -> IO ()
 
 class HasUsers a where
   getAllUsers :: a -> IO [User]
@@ -60,12 +60,6 @@ logError s = do
   logger <- asks getErrorLog
   liftIO $ logger s
 
-class CanPushData a where
-  getDataPusher :: a -> DataQueuePusher
-
-class CanNotifyUsers a where
-  getUserNotifier :: a -> (UserId -> Value -> IO ())
-
 instance HasUsers Env where
   getAllUsers = envGetAllUsers
 
@@ -85,41 +79,42 @@ instance HasIOLogger Env where
   getInfoLog = envLogInfo
   getErrorLog = envLogError
 
-instance CanPushData Env where
-  getDataPusher = envPushData
-
-instance CanNotifyUsers Env where
-  getUserNotifier = envNotify
-
 app :: (MonadIO m, MonadReader Env m) => m ()
 app = do
   env <- ask
-  publishJob <- liftIO . async $ runReaderT publishAll env
+
+  userNotificationVar <- liftIO newEmptyMVar
+  dataEventsVar <- liftIO newEmptyMVar
+
+  publishJob <- liftIO . async $ runReaderT (publishAll userNotificationVar dataEventsVar) env
 
   userNotificationJob <-
     liftIO . async $
       publishNotifications
-        (envReadNotification env)
+        (takeMVar userNotificationVar)
         (envPublishNotification env)
 
   dataEventsJob <-
     liftIO . async $
       publishNotifications
-        (envReadEvent env)
+        (takeMVar dataEventsVar)
         (envPublishData env)
 
   liftIO $ wait publishJob
 
 -- Publishes data from all user sources to the data queue
-publishAll :: (MonadIO m, MonadReader Env m) => m ()
-publishAll = forever $ do
+publishAll :: (MonadIO m, MonadReader Env m) => MVar MessageToUser -> MVar SourceData -> m ()
+publishAll notificationVar dataVar = forever $ do
   userGetter <- asks getAllUsers
 
   logInfo "Fetching users..."
   users <- liftIO userGetter
 
-  forM_ users publishForUser
-  forM_ users publishSSForUser
+  let notifyUser = notify notificationVar
+  let pushData = putMVar dataVar
+
+  forM_ users (publishForUser notifyUser pushData)
+  forM_ users (publishSSForUser notifyUser pushData)
 
   logInfo "All done, soon looping again!"
 
@@ -130,14 +125,14 @@ publishSSForUser ::
   ( MonadIO m,
     MonadReader env m,
     HasIOLogger env,
-    CanNotifyUsers env,
-    CanPushData env,
     HasSimpleSources env,
     HasSimpleSourceCollector env
   ) =>
+  UserNotifier ->
+  DataPusher ->
   User ->
   m ()
-publishSSForUser user = do
+publishSSForUser notifier dataPusher user = do
   env <- ask
   maybeSources <- liftIO . runExceptT $ getUserSimpleSources env (userId user)
 
@@ -145,7 +140,7 @@ publishSSForUser user = do
     (Left err) -> logError (show err)
     (Right sources) -> do
       logInfo "Collecting simple sources..."
-      forM_ sources collectSimpleSource
+      forM_ sources (collectSimpleSource notifier dataPusher)
 
       logInfo "Collected simple sources!"
 
@@ -153,13 +148,13 @@ collectSimpleSource ::
   ( MonadIO m,
     MonadReader env m,
     HasIOLogger env,
-    CanNotifyUsers env,
-    CanPushData env,
     HasSimpleSourceCollector env
   ) =>
+  UserNotifier ->
+  DataPusher ->
   SimpleShallowJsonSource ->
   m ()
-collectSimpleSource source = do
+collectSimpleSource userNotifier dataPusher source = do
   env <- ask
   sourceData <- liftIO $ getSsCollector env source
 
@@ -168,10 +163,10 @@ collectSimpleSource source = do
     (Right sd) -> do
       -- Notify the user that we've collected it
       sourcePayload <- liftIO $ buildSimpleSourcePayload source
-      liftIO $ getUserNotifier env (sourceOwnerId sd) sourcePayload
+      liftIO $ userNotifier (sourceOwnerId sd) sourcePayload
 
       -- Stick the data on the data queue
-      liftIO $ getDataPusher env sd
+      liftIO $ dataPusher sd
 
       logInfo "Published simple data"
 
@@ -181,20 +176,20 @@ publishForUser ::
     MonadReader env m,
     HasIOLogger env,
     HasHomes env,
-    CanNotifyUsers env,
-    CanPushData env,
     HasHueHomeCollector env
   ) =>
+  UserNotifier ->
+  DataPusher ->
   User ->
   m ()
-publishForUser user = do
+publishForUser notifier dataPusher user = do
   env <- ask
 
   logInfo "Fetching verified user homes..."
   homes <- liftIO $ getUserHomes env (userId user)
 
   logInfo "Collecting metrics..."
-  forM_ homes collectHome
+  forM_ homes (collectHome notifier dataPusher)
 
   logInfo "Done!"
 
@@ -218,20 +213,18 @@ buildSimpleSourcePayload source = do
         "sourceId" .= genericSourceId source
       ]
 
-type DataQueuePusher = SourceData -> IO ()
-
 -- Publishes data from the given home to the data queue
 collectHome ::
   ( MonadIO m,
     MonadReader env m,
     HasIOLogger env,
-    CanNotifyUsers env,
-    CanPushData env,
     HasHueHomeCollector env
   ) =>
+  UserNotifier ->
+  DataPusher ->
   Home ->
   m ()
-collectHome home = do
+collectHome notifier dataPusher home = do
   env <- ask
 
   -- Get the data
@@ -242,10 +235,10 @@ collectHome home = do
 
       -- Notify the user that we've collected it
       homePayload <- liftIO $ buildHomePayload home
-      liftIO $ getUserNotifier env (ownerId home) homePayload
+      liftIO $ notifier (ownerId home) homePayload
 
       -- Stick the data on the data queue
-      liftIO $ getDataPusher env sourceData
+      liftIO $ dataPusher sourceData
 
       logInfo "Published light data"
     (Left err) -> logError err

@@ -70,9 +70,6 @@ main = do
   maybeConfig <- readUserNotificationQueueConfig
   case maybeConfig of
     (Just config) -> do
-      userNotificationVar <- liftIO newEmptyMVar
-      dataEventsVar <- liftIO newEmptyMVar
-
       queueConnection <- liftIO $ Q.openConnection (hostname config) (vhost config) (username config) (password config)
       queueChannel    <- liftIO $ Q.openChannel queueConnection
 
@@ -87,10 +84,6 @@ main = do
         , envCollectSs = runCollector . SS.collect
         , envLogInfo = infoM loggerName
         , envLogError = errorM loggerName
-        , envReadEvent = takeMVar dataEventsVar
-        , envReadNotification = takeMVar userNotificationVar
-        , envPushData = putMVar dataEventsVar
-        , envNotify = notify userNotificationVar
         , envPublishNotification = rmqPushFunction queueChannel (notiQueueName config)
         , envPublishData = rmqPushFunction queueChannel (dataQueueName config)
       }
