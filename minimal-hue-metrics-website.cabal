@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fcc9ff2266c3aa1c2d3757a6561d7241c395c201fb86b0ee5fc9a74746f3749a
+-- hash: db666ea7a43408680ff7140d0e359a54982ac2d5961dc4b7769efdbae5e50ae8
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -401,6 +401,58 @@ test-suite google-login-test
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       test/google-login
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , aeson
+    , amqp
+    , async
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , case-insensitive
+    , containers
+    , convertible
+    , cryptohash-md5
+    , hslogger
+    , hspec
+    , http-client
+    , http-client-tls
+    , http-types
+    , influxdb
+    , jose
+    , lens
+    , minimal-hue-metrics-website
+    , modern-uri
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , scientific
+    , stringsearch
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+    , websockets
+  default-language: Haskell2010
+
+test-suite influx-pusher-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      InfluxPusher
+      Main
+      Paths_minimal_hue_metrics_website
+  hs-source-dirs:
+      influxpusher
+      test/influxpusher
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
