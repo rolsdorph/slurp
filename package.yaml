@@ -57,6 +57,7 @@ dependencies:
 - influxdb
 - scientific
 - modern-uri
+- QuickCheck
 
 library:
   source-dirs: src

@@ -49,6 +49,7 @@ library
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -99,6 +100,7 @@ executable hue-metrics-collector-exe
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -148,6 +150,7 @@ executable hue-metrics-server-exe
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -197,6 +200,7 @@ executable influx-pusher-exe
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -246,6 +250,7 @@ executable notifier-exe
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -298,6 +303,7 @@ test-suite api-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -405,6 +411,7 @@ test-suite google-login-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -449,6 +456,7 @@ test-suite influx-pusher-test
   other-modules:
       InfluxPusher
       Main
+      Generators
       TestUtil
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
@@ -459,6 +467,7 @@ test-suite influx-pusher-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -511,6 +520,7 @@ test-suite notifier-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async
@@ -560,6 +570,7 @@ test-suite oauth-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async

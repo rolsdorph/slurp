@@ -133,7 +133,7 @@ data SourceData = SourceData {
     sourceOwnerId :: String,
     datakey :: String,
     datapoints :: [DataPoint]
-} deriving Show
+} deriving (Show, Eq)
 
 instance ToJSON SourceData where
     toJSON s = object
@@ -225,7 +225,7 @@ instance ToJSON Home where
 data InfluxSink = InfluxSink
   { influxUuid :: String,
     influxDefinition :: InfluxDefinition
-  }
+  } deriving (Show, Eq)
 
 data InfluxDefinition = InfluxDefinition
   { influxOwnerId :: String,
@@ -235,7 +235,7 @@ data InfluxDefinition = InfluxDefinition
     influxUsername :: String,
     influxPassword :: String,
     influxCreatedAt :: UTCTime
-  }
+  } deriving (Show, Eq)
 
 instance ToJSON InfluxSink where
     toJSON (InfluxSink uuid (InfluxDefinition _ influxHost influxPort influxTLS _ _ createdAt))
@@ -250,7 +250,7 @@ instance ToJSON InfluxSink where
 data MessageToUser = MessageToUser {
     targetUserId :: UserId,
     payload :: Value
-}
+} deriving Show
 
 instance ToJSON MessageToUser where
     toJSON message =
