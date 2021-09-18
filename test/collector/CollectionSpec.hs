@@ -9,13 +9,12 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Either (isRight)
 import Data.Functor.Identity
 import Data.List (isInfixOf)
-import Data.Time.Calendar (Day (ModifiedJulianDay))
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import qualified Data.Text as T
 import Data.Vector (fromList)
 import qualified HueHome as HH
 import qualified SimpleSource as SS
 import Test.Hspec (Spec, describe, hspec, it, shouldBe, shouldSatisfy)
+import TestUtil
 import Types
 
 main :: IO ()
@@ -149,9 +148,6 @@ testHome =
 isErrorContaining :: String -> Either String a -> Bool
 isErrorContaining desired (Left actual) = desired `isInfixOf` actual
 isErrorContaining _ _ = False
-
-someTime :: UTCTime
-someTime = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
 
 noopLogger :: String -> IO ()
 noopLogger = const (return ())

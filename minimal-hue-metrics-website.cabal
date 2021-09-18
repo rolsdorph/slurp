@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: db666ea7a43408680ff7140d0e359a54982ac2d5961dc4b7769efdbae5e50ae8
 
 name:           minimal-hue-metrics-website
 version:        0.1.0.0
@@ -348,10 +346,12 @@ test-suite collector-test
       SimpleSource
       CollectionSpec
       CollectorSpec
+      TestUtil
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       collector
       test/collector
+      test/util
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
@@ -449,10 +449,12 @@ test-suite influx-pusher-test
   other-modules:
       InfluxPusher
       Main
+      TestUtil
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
       influxpusher
       test/influxpusher
+      test/util
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC

@@ -153,6 +153,7 @@ tests:
     source-dirs:
       - collector
       - test/collector
+      - test/util
     ghc-options:
       - -threaded
       - -rtsopts
@@ -166,6 +167,7 @@ tests:
     source-dirs:
       - influxpusher
       - test/influxpusher
+      - test/util
     ghc-options:
       - -threaded
       - -rtsopts
