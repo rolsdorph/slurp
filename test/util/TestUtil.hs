@@ -12,6 +12,10 @@ someTime = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
 
 returnIf :: (Monad m) => User -> a -> (UserId -> m [a])
 returnIf user a = \uid -> return $ if (userId user == uid) then [a] else []
+
+rightIf :: (Monad m, Eq a) => a -> b -> (a -> m (Either String b))
+rightIf expected returnValue = \actual -> return $ if actual == expected then Right returnValue else Left "Not found"
+
 -- Grabs elements from the given channel until {target} elements have been read,
 -- and then returns the accumulated elements
 waitForElems :: Chan a -> Int -> IO [a]

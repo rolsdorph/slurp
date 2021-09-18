@@ -75,7 +75,7 @@ data QueueConfig = QueueConfig {
 }
 
 data VerificationState = Verified | UsernamePending | OAuthPending | Unknown
-                       deriving Show
+                       deriving (Eq, Show)
 
 instance Convertible VerificationState SqlValue where
     safeConvert Verified = Right $ toSql ("Verified" :: String)
@@ -211,7 +211,7 @@ data Home =
                  , accessExpiry :: Maybe UTCTime
                  , refreshExpiry :: Maybe UTCTime
                  , hueUsername :: Maybe String }
-    deriving Show
+    deriving (Eq, Show)
 
 instance ToJSON Home where
     toJSON (Home uuid homeDataKey _ createdAt state _ _ _ _ _ _)
@@ -268,7 +268,7 @@ type MappedValue = (TagOrFieldName, DataPointValue)
 data SimpleShallowJsonSource = SimpleShallowJsonSource {
     genericSourceId :: String,
     ssDefinition :: SimpleSourceDefinition
-}
+} deriving (Eq, Show)
 
 data SimpleSourceDefinition = SimpleSourceDefinition {
     genericDataKey :: String,
@@ -278,7 +278,7 @@ data SimpleSourceDefinition = SimpleSourceDefinition {
     authHeader :: B.ByteString, -- Authorization header value to use for fetching
     tagMappings :: [JsonMapping], -- Json path => Tag mappings
     fieldMappings :: [JsonMapping] -- Json path => Field mappings
-}
+} deriving (Eq, Show)
 
 instance ToJSON SimpleShallowJsonSource where
     toJSON (SimpleShallowJsonSource uuid (SimpleSourceDefinition datakey _ createdAt url _ tagMappings fieldMappings)) =

@@ -352,6 +352,7 @@ test-suite collector-test
       SimpleSource
       CollectionSpec
       CollectorSpec
+      Generators
       TestUtil
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
@@ -362,6 +363,7 @@ test-suite collector-test
   build-depends:
       HDBC
     , HDBC-sqlite3
+    , QuickCheck
     , aeson
     , amqp
     , async

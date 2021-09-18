@@ -33,6 +33,32 @@ testSsFor owner =
             <*> return []
         )
 
+testHomeFor :: User -> Gen Home
+testHomeFor owner =
+  Home
+    <$> arbitrary
+    <*> arbitrary
+    <*> return (userId owner)
+    <*> return someTime
+    <*> return Verified
+    <*> (Just <$> arbitrary)
+    <*> (Just <$> arbitrary)
+    <*> (Just <$> arbitrary)
+    <*> return (Just someTime)
+    <*> return (Just someTime)
+    <*> (Just <$> arbitrary)
+
+testSourceDataFor :: Home -> Gen SourceData
+testSourceDataFor home =
+  arbitrary >>= \dps ->
+    return
+      SourceData
+        { sourceId = uuid home,
+          sourceOwnerId = ownerId home,
+          datakey = homeDataKey home,
+          datapoints = getDp <$> dps
+        }
+
 testSourceDataForSs :: SimpleShallowJsonSource -> Gen SourceData
 testSourceDataForSs (SimpleShallowJsonSource sId definition) =
   arbitrary >>= \dps ->
