@@ -20,6 +20,7 @@ module Types
     , DataPointValue(..)
     , Home(..)
     , InfluxSink(..)
+    , InfluxDefinition(..)
     , MessageToUser(..)
     , JsonMapping
     , MappedValue
@@ -221,18 +222,23 @@ instance ToJSON Home where
             , "createdAt" .= createdAt
             ]
 
-data InfluxSink = InfluxSink { influxUuid :: Maybe String
-                 , influxOwnerId :: Maybe String
-                 , influxHost :: String
-                 , influxPort :: Int
-                 , influxTLS :: Bool
-                 , influxUsername :: String
-                 , influxPassword :: String
-                 , influxCreatedAt :: UTCTime }
-    deriving Show
+data InfluxSink = InfluxSink
+  { influxUuid :: String,
+    influxDefinition :: InfluxDefinition
+  }
+
+data InfluxDefinition = InfluxDefinition
+  { influxOwnerId :: String,
+    influxHost :: String,
+    influxPort :: Int,
+    influxTLS :: Bool,
+    influxUsername :: String,
+    influxPassword :: String,
+    influxCreatedAt :: UTCTime
+  }
 
 instance ToJSON InfluxSink where
-    toJSON (InfluxSink uuid _ influxHost influxPort influxTLS _ _ createdAt)
+    toJSON (InfluxSink uuid (InfluxDefinition _ influxHost influxPort influxTLS _ _ createdAt))
         = object
             [ "id" .= uuid
             , "influxHost" .= influxHost

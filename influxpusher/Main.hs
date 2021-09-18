@@ -63,7 +63,7 @@ main = do
             loggerName
             "Notification queue config not found, refusing to start"
 
-doPush :: SourceData -> InfluxSink -> IO InfluxPushResult
+doPush :: SourceData -> InfluxDefinition -> IO InfluxPushResult
 doPush dataToPublish sink =
     Influx.publish
       (T.pack $ influxHost sink)

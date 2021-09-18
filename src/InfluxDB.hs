@@ -36,7 +36,7 @@ setupDb = do
     disconnect conn
 
 -- Stores a InfluxSink in the database
-storeInfluxSink :: InfluxSink -> ExceptT BL.ByteString IO InfluxSink
+storeInfluxSink :: InfluxDefinition -> ExceptT BL.ByteString IO InfluxSink
 storeInfluxSink influx = do
     uuid        <- liftIO $ show <$> nextRandom
 
@@ -61,7 +61,7 @@ storeInfluxSink influx = do
     liftIO $ disconnect conn
 
     case numInserted of
-        1 -> return influx { influxUuid = Just uuid }
+        1 -> return InfluxSink { influxUuid = uuid, influxDefinition = influx }
         _ -> throwError "Failed to store source."
 
 -- Retrieves all InfluxSinks for the given ownerId
@@ -73,14 +73,16 @@ getUserInfluxSinks ownerId = do
     sinks <- fetchAllRowsAL stmt
     pure $ mapMaybe parseInfluxSinkRow sinks
 
+
 parseInfluxSinkRow :: [(String, SqlValue)] -> Maybe InfluxSink
 parseInfluxSinkRow vals =
-    InfluxSink
-        <$> valFrom "uuid" vals
-        <*> pure (valFrom "ownerId" vals)
-        <*> valFrom "influxHost" vals
-        <*> valFrom "influxPort" vals
-        <*> valFrom "influxTLS" vals
-        <*> valFrom "influxUsername" vals
-        <*> valFrom "influxPassword" vals
-        <*> valFrom "createdAt" vals
+  InfluxSink
+    <$> valFrom "uuid" vals
+    <*> ( InfluxDefinition <$> valFrom "ownerId" vals
+            <*> valFrom "influxHost" vals
+            <*> valFrom "influxPort" vals
+            <*> valFrom "influxTLS" vals
+            <*> valFrom "influxUsername" vals
+            <*> valFrom "influxPassword" vals
+            <*> valFrom "createdAt" vals
+        )

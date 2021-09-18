@@ -18,7 +18,7 @@ import UserNotification (notify, publishNotifications)
 
 data Env = Env
   { envGetUserSinks :: UserId -> IO [InfluxSink],
-    envInfluxPush :: SourceData -> InfluxSink -> IO InfluxPushResult,
+    envInfluxPush :: SourceData -> InfluxDefinition -> IO InfluxPushResult,
     envLogInfo :: String -> IO (),
     envLogWarn :: String -> IO (),
     envLogError :: String -> IO (),
@@ -30,7 +30,7 @@ class HasSinks a where
   getUserSinks :: a -> UserId -> IO [InfluxSink]
 
 class HasInfluxPush a where
-  getInfluxPush :: a -> SourceData -> InfluxSink -> IO InfluxPushResult
+  getInfluxPush :: a -> SourceData -> InfluxDefinition -> IO InfluxPushResult
 
 class HasIOLogger a where
   getInfoLog :: a -> String -> IO ()
@@ -95,7 +95,7 @@ pushToSink ::
   m ()
 pushToSink dataToPublish userNotifier sink = do
   influxPush <- asks getInfluxPush
-  res <- liftIO $ influxPush dataToPublish sink
+  res <- liftIO $ influxPush dataToPublish (influxDefinition sink)
 
   case res of
     Influx.Success -> do

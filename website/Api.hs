@@ -457,12 +457,12 @@ homeFrom currentUser params = do
     return $ PreCreationHome key (userId currentUser) currentTime OAuthPending
 
 -- Attempts to construct an Influx sink DTO from a set of parameters originating from a HTTP request
-influxSinkFrom :: User -> [Param] -> ExceptT L.ByteString IO InfluxSink
+influxSinkFrom :: User -> [Param] -> ExceptT L.ByteString IO InfluxDefinition
 influxSinkFrom currentUser params = do
   currentTime <- liftIO getCurrentTime
 
   liftEither $
-    InfluxSink Nothing (Just $ userId currentUser)
+    InfluxDefinition (userId currentUser)
       <$> (C.unpack . snd <$> lookupParam "influxHost" params)
       <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
       <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
