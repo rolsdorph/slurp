@@ -132,6 +132,5 @@ parseSinkFed = withObject "notification" $ \v -> do
   return sinkId
 
 isSinkFedFor :: InfluxSink -> Value -> Bool
-isSinkFedFor s val = case parseMaybe parseSinkFed val of
-  (Just sinkId) -> sinkId == influxUuid s
-  _ -> False
+isSinkFedFor s val =
+  parseMaybe parseSinkFed val == Just (influxUuid s)
