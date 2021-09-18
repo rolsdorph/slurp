@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Concurrent (Chan, newChan, readChan, writeChan)
+import Control.Concurrent (Chan, newChan, writeChan)
 import Control.Concurrent.Async (async, wait)
 import Control.Monad (when)
 import Control.Monad.Reader (runReaderT)
@@ -71,16 +71,6 @@ withCapturingEnv = do
         sink = testSink,
         env = capturingEnv
       }
-
--- Grabs elements from the given channel until {target} elements have been read,
--- and then returns the accumulated elements
-waitForElems :: Chan a -> Int -> IO [a]
-waitForElems dataChan target = go dataChan target []
-  where
-    go chan targetCount cur =
-      readChan dataChan >>= \nextElem -> do
-        let newCur = nextElem : cur
-        if length newCur == target then return newCur else go chan targetCount newCur
 
 spec :: Spec
 spec = do
