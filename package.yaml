@@ -65,7 +65,7 @@ library:
 executables:
   hue-metrics-server-exe:
     main:                Main.hs
-    source-dirs:         website
+    source-dirs:         api
     ghc-options:
     - -threaded
     - -rtsopts
@@ -107,8 +107,8 @@ tests:
   api-test:
     main:                Spec.hs
     source-dirs:
-     - website
-     - test/main
+     - api
+     - test/api
     ghc-options:
     - -threaded
     - -rtsopts

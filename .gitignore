@@ -4,7 +4,7 @@
 *.swp
 loadCreds.sh
 loadQueueConfig.sh
-website/resources/certs.json
+api/resources/certs.json
 .idea/
 *.iml
 out

@@ -193,26 +193,6 @@ publishForUser notifier dataPusher user = do
 
   logInfo "Done!"
 
-buildHomePayload :: Home -> IO Value
-buildHomePayload home = do
-  curTime <- getCurrentTime
-  pure $
-    object
-      [ "type" .= ("SourceCollected" :: String),
-        "time" .= curTime,
-        "sourceId" .= uuid home
-      ]
-
-buildSimpleSourcePayload :: SimpleShallowJsonSource -> IO Value
-buildSimpleSourcePayload source = do
-  curTime <- getCurrentTime
-  pure $
-    object
-      [ "type" .= ("SourceCollected" :: String),
-        "time" .= curTime,
-        "sourceId" .= genericSourceId source
-      ]
-
 -- Publishes data from the given home to the data queue
 collectHome ::
   ( MonadIO m,
@@ -242,3 +222,23 @@ collectHome notifier dataPusher home = do
 
       logInfo "Published light data"
     (Left err) -> logError err
+
+buildHomePayload :: Home -> IO Value
+buildHomePayload home = do
+  curTime <- getCurrentTime
+  pure $
+    object
+      [ "type" .= ("SourceCollected" :: String),
+        "time" .= curTime,
+        "sourceId" .= uuid home
+      ]
+
+buildSimpleSourcePayload :: SimpleShallowJsonSource -> IO Value
+buildSimpleSourcePayload source = do
+  curTime <- getCurrentTime
+  pure $
+    object
+      [ "type" .= ("SourceCollected" :: String),
+        "time" .= curTime,
+        "sourceId" .= genericSourceId source
+      ]

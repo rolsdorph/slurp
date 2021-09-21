@@ -145,7 +145,7 @@ executable hue-metrics-server-exe
       Api
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
-      website
+      api
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
@@ -297,8 +297,8 @@ test-suite api-test
       Main
       Paths_minimal_hue_metrics_website
   hs-source-dirs:
-      website
-      test/main
+      api
+      test/api
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
