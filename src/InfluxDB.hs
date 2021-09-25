@@ -12,6 +12,7 @@ import           DBUtil
 import           Types
 import           Util
 import Control.Monad.Except (ExceptT, liftIO, throwError)
+import Control.Monad.Reader (MonadReader, ReaderT, ask)
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 influxTableName = "influxes" :: String
@@ -29,6 +30,8 @@ createStmt =
        \ influxUsername text NOT NULL,\
        \ influxPassword text NOT NULL)"
 
+type HasConnection = ReaderT Connection IO
+
 setupDb = do
     conn <- connectSqlite3 dbName
     run conn createStmt []
@@ -36,11 +39,12 @@ setupDb = do
     disconnect conn
 
 -- Stores a InfluxSink in the database
-storeInfluxSink :: InfluxDefinition -> ExceptT BL.ByteString IO InfluxSink
+storeInfluxSink :: InfluxDefinition -> ExceptT BL.ByteString HasConnection InfluxSink
 storeInfluxSink influx = do
+    conn        <- ask
+
     uuid        <- liftIO $ show <$> nextRandom
 
-    conn        <- liftIO $ connectSqlite3 dbName
     numInserted <- liftIO $ run
         conn
         ("INSERT INTO "
@@ -65,13 +69,14 @@ storeInfluxSink influx = do
         _ -> throwError "Failed to store source."
 
 -- Retrieves all InfluxSinks for the given ownerId
-getUserInfluxSinks :: String -> IO [InfluxSink]
+getUserInfluxSinks :: String -> HasConnection [InfluxSink]
 getUserInfluxSinks ownerId = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn ("SELECT * FROM " ++ influxTableName ++ " WHERE ownerId = ?")
-    res <- execute stmt [toSql ownerId]
-    sinks <- fetchAllRowsAL stmt
-    pure $ mapMaybe parseInfluxSinkRow sinks
+    conn <- ask
+
+    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ influxTableName ++ " WHERE ownerId = ?")
+    res <- liftIO $ execute stmt [toSql ownerId]
+    sinks <- liftIO $ fetchAllRowsAL stmt
+    return $ mapMaybe parseInfluxSinkRow sinks
 
 
 parseInfluxSinkRow :: [(String, SqlValue)] -> Maybe InfluxSink

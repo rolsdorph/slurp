@@ -25,7 +25,8 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT, lift)
+import           Control.Monad.Reader (runReaderT)
+import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT, lift, mapExceptT)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
 import qualified Network.HTTP.Types            as HTTP
@@ -42,6 +43,7 @@ import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
+import           Database.HDBC.Sqlite3 (connectSqlite3)
 import           Network.HTTP.Req
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
@@ -61,6 +63,8 @@ app creds keys request respond = do
                         (Just u) -> rightOrNothing <$> u
                         _ -> pure Nothing
 
+    conn <- connectSqlite3 InfluxDB.dbName
+
     response <- case (requestMethod request, rawPathInfo request) of
         ("GET" , "/"             ) -> pure $ staticResponse "../frontend/index.html"
         ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
@@ -69,8 +73,8 @@ app creds keys request respond = do
         ("GET" , "/currentUser"  ) -> showUser currentUser
         ("POST", "/insecureAuth" ) -> renderResponse $ insecureAuth (fst reqBodyParsed)
         ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
-        ("GET", "/sinks"         ) -> getSinks currentUser
-        ("POST", "/sinks"        ) -> renderResponse $ postSink currentUser (fst reqBodyParsed)
+        ("GET", "/sinks"         ) -> runReaderT (getSinks currentUser) conn
+        ("POST", "/sinks"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postSink currentUser (fst reqBodyParsed))
         ("GET", "/homes"         ) -> getHomes currentUser
         ("POST", "/homes"        ) -> renderResponse $ postHome creds currentUser (fst reqBodyParsed) (queryString request)
         ("GET", "/simpleSources" ) -> renderResponse $ getSimpleSources currentUser
@@ -216,11 +220,11 @@ buildGoogleClientId creds = do
         _        -> throwError "Failed to parse client ID"
 
 -- GET /sinks
-getSinks :: Maybe User -> IO Response
+getSinks :: Maybe User -> HasConnection Response
 getSinks Nothing            = pure unauthenticated
 getSinks (Just currentUser) = do
     sinks <- getUserInfluxSinks (userId currentUser)
-    pure $ success200Json sinks
+    return $ success200Json sinks
 
 -- GET /homes
 getHomes :: Maybe User -> IO Response
@@ -245,10 +249,10 @@ postSimpleSource (Just currentUser) params = do
     return $ success201Json storedSource
 
 -- POST /sinks
-postSink :: Maybe User -> [Param] -> ExceptT ErrorResponse IO Response
+postSink :: Maybe User -> [Param] -> ExceptT ErrorResponse HasConnection Response
 postSink Nothing            _      = throwError $ Unauthorized "Unauthorized"
 postSink (Just currentUser) params = do
-    parsedSink <- withExceptT BadRequest $ influxSinkFrom currentUser params
+    parsedSink <- mapExceptT liftIO (withExceptT BadRequest (influxSinkFrom currentUser params))
     liftIO $ infoM loggerName "Storing sink..."
     storedSink <- withExceptT InternalServerError $ storeInfluxSink parsedSink
     return $ success201Json storedSink

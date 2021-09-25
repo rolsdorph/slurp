@@ -18,6 +18,7 @@ import           UserNotification
 import InfluxPublish (InfluxPushResult)
 import RabbitMQ (createConsumerRegistry)
 import Control.Monad.Reader (runReaderT)
+import           Database.HDBC.Sqlite3 (connectSqlite3)
 
 loggerName :: String
 loggerName = "InfluxPusher"
@@ -31,6 +32,8 @@ main = do
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
     stdOutHandler <- verboseStreamHandler stdout DEBUG
     updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+
+    conn <- connectSqlite3 InfluxDB.dbName
 
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
@@ -52,7 +55,7 @@ main = do
               envLogInfo = infoM loggerName,
               envLogWarn = warningM loggerName,
               envLogError = errorM loggerName,
-              envGetUserSinks = InfluxDB.getUserInfluxSinks,
+              envGetUserSinks = (`runReaderT` conn) <$> InfluxDB.getUserInfluxSinks,
               envInfluxPush = doPush,
               envPublishNotification = rmqPushFunction queueChannel (notiQueueName queueConfig),
               envConsumerRegistry = consumerRegistry
