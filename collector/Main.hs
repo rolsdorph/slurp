@@ -20,9 +20,11 @@ import           Text.Printf
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
+import           Database.HDBC.Sqlite3 (connectSqlite3)
 
 import qualified SimpleSourceDB
 import qualified HomeDB
+import qualified InfluxDB
 import qualified UserDB
 import           HueHome
 import           Secrets
@@ -67,6 +69,8 @@ main = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
+  conn <- connectSqlite3 InfluxDB.dbName
+
   maybeConfig <- readUserNotificationQueueConfig
   case maybeConfig of
     (Just config) -> do
@@ -79,7 +83,7 @@ main = do
       let env = Env {
           envGetAllUsers = UserDB.getAllUsers
         , envGetUserSs = SimpleSourceDB.getUserSimpleSources
-        , envGetUserHomes = HomeDB.getUserHomes
+        , envGetUserHomes = (`runReaderT` conn) <$> HomeDB.getUserHomes
         , envCollectHome = runCollector . HueHome.collect
         , envCollectSs = runCollector . SS.collect
         , envLogInfo = infoM loggerName

@@ -5,6 +5,10 @@ module DBUtil where
 import           Data.Convertible.Base
 import           Data.List
 import           Database.HDBC
+import Control.Monad.Reader (ReaderT)
+import           Database.HDBC.Sqlite3 (Connection)
+
+type HasConnection = ReaderT Connection IO
 
 eitherValFrom
     :: Convertible SqlValue a

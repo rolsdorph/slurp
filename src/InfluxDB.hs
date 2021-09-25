@@ -30,8 +30,6 @@ createStmt =
        \ influxUsername text NOT NULL,\
        \ influxPassword text NOT NULL)"
 
-type HasConnection = ReaderT Connection IO
-
 setupDb = do
     conn <- connectSqlite3 dbName
     run conn createStmt []

@@ -14,6 +14,7 @@ import           UserDB
 import           Auth
 import           TokenDB
 import           InfluxDB
+import           DBUtil (HasConnection)
 
 import           HomeDB
 import           SimpleSourceDB
@@ -75,11 +76,11 @@ app creds keys request respond = do
         ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
         ("GET", "/sinks"         ) -> runReaderT (getSinks currentUser) conn
         ("POST", "/sinks"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postSink currentUser (fst reqBodyParsed))
-        ("GET", "/homes"         ) -> getHomes currentUser
-        ("POST", "/homes"        ) -> renderResponse $ postHome creds currentUser (fst reqBodyParsed) (queryString request)
+        ("GET", "/homes"         ) -> runReaderT (getHomes currentUser) conn
+        ("POST", "/homes"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postHome creds currentUser (fst reqBodyParsed) (queryString request))
         ("GET", "/simpleSources" ) -> renderResponse $ getSimpleSources currentUser
         ("POST", "/simpleSources") -> renderResponse $ postSimpleSource currentUser (fst reqBodyParsed)
-        ("GET" , "/callback"     ) -> renderResponse $ hueOauthCallback creds (queryString request)
+        ("GET" , "/callback"     ) -> renderResponse $ mapExceptT (`runReaderT` conn) (hueOauthCallback creds (queryString request))
         (_     , _               ) -> pure notFound
 
     respond response
@@ -227,11 +228,11 @@ getSinks (Just currentUser) = do
     return $ success200Json sinks
 
 -- GET /homes
-getHomes :: Maybe User -> IO Response
+getHomes :: Maybe User -> HasConnection Response
 getHomes Nothing            = pure unauthenticated
 getHomes (Just currentUser) = do
     homes <- getUserHomes (userId currentUser)
-    pure $ success200Json homes
+    return $ success200Json homes
 
 -- GET /simpleSources
 getSimpleSources :: MonadSimpleSource m => Maybe User -> ExceptT ErrorResponse m Response
@@ -258,10 +259,10 @@ postSink (Just currentUser) params = do
     return $ success201Json storedSink
 
 -- POST /homes
-postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> ExceptT ErrorResponse IO Response
+postHome :: AppCreds -> Maybe User -> [Param] -> HTTP.Query -> ExceptT ErrorResponse HasConnection Response
 postHome _     Nothing            _      _           = pure unauthenticated
 postHome creds (Just currentUser) params queryParams = do
-    home <- withExceptT BadRequest $ homeFrom currentUser params
+    home <- mapExceptT liftIO (withExceptT BadRequest (homeFrom currentUser params))
 
     let redirectInBodyQParam =
             getParamValue "redirectUrlInBody" queryParams
@@ -272,9 +273,9 @@ postHome creds (Just currentUser) params queryParams = do
     liftIO $ infoM loggerName "Storing home..."
     storedHome <- withExceptT InternalServerError $ storeHome home
 
-    hueOauthRedirect creds storedHome redirectInBody
+    liftEither $ hueOauthRedirect creds storedHome redirectInBody
 
-hueOauthRedirect :: AppCreds -> Home -> Bool -> ExceptT ErrorResponse IO Response
+hueOauthRedirect :: AppCreds -> Home -> Bool -> Either ErrorResponse Response
 hueOauthRedirect creds home redirectInBody = case oauthState home of
     Just state -> do
         let redirectTarget = buildHueOauthRedirect creds state
@@ -284,15 +285,15 @@ hueOauthRedirect creds home redirectInBody = case oauthState home of
     _ -> throwError $ InternalServerError "Internal Server Error - did not find expected OAuth state"
 
 -- GET /callback
-hueOauthCallback :: AppCreds -> HTTP.Query -> ExceptT ErrorResponse IO Response
+hueOauthCallback :: AppCreds -> HTTP.Query -> ExceptT ErrorResponse HasConnection Response
 hueOauthCallback creds queryParams = do
   state <- withExceptT BadRequest $ getParamValue "state" queryParams
   code  <- withExceptT BadRequest $ getParamValue "code" queryParams
 
-  liftIO $ hueCallbackResponse creds state (U.fromString code)
+  lift $ hueCallbackResponse creds state (U.fromString code)
 
 -- Generates a callback response for the given state and code param
-hueCallbackResponse :: AppCreds -> String -> B.ByteString -> IO Response
+hueCallbackResponse :: AppCreds -> String -> B.ByteString -> HasConnection Response
 hueCallbackResponse creds state code = do
     maybeHome <- getOauthPendingHome state
 
@@ -300,12 +301,12 @@ hueCallbackResponse creds state code = do
         (Just h) -> finishHueOAuthFlow creds code h
         _        -> return notFound
 
-finishHueOAuthFlow :: AppCreds -> B.ByteString -> Home -> IO Response
+finishHueOAuthFlow :: AppCreds -> B.ByteString -> Home -> HasConnection Response
 finishHueOAuthFlow creds code home = do
-    tokens <- getHueOAuthTokens creds code
+    tokens <- liftIO $ getHueOAuthTokens creds code
     case tokens of
         (Right resp) -> do
-            currentTime <- getCurrentTime
+            currentTime <- liftIO $ getCurrentTime
             let accessExpires = addUTCTime
                     (secondsToNominalDiffTime $ accessTokenExpiresIn resp)
                     currentTime
@@ -377,9 +378,9 @@ finalHueOAuth creds realm nonce code = do
             )
         return $ responseBody res
 
-generateAndSaveUsername :: AppCreds -> Home -> IO Response
+generateAndSaveUsername :: AppCreds -> Home -> HasConnection Response
 generateAndSaveUsername creds home = do
-    maybeUsername <- generateUsername creds home
+    maybeUsername <- liftIO $ generateUsername creds home
     case maybeUsername of
         (Right username) -> do
             let newHome =

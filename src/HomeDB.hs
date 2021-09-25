@@ -14,6 +14,7 @@ import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
 import Control.Monad.Except (ExceptT, liftIO, throwError)
+import Control.Monad.Reader (ReaderT, ask)
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 homeTableName = "homes" :: String
@@ -41,10 +42,10 @@ setupDb = do
     disconnect conn
 
 -- Stores the updated home
-updateHome :: Home -> IO (Maybe Home)
+updateHome :: Home -> HasConnection (Maybe Home)
 updateHome newHome = do
-    conn        <- connectSqlite3 dbName
-    numUpdated <- run
+    conn        <- ask
+    numUpdated <- liftIO $ run
         conn
         ("UPDATE "
         ++ homeTableName
@@ -58,22 +59,23 @@ updateHome newHome = do
         , toSql $ hueUsername newHome
         , toSql $ uuid newHome
         ]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
 
     case numUpdated of
         1 -> return $ Just newHome
         _ -> return Nothing
 
 -- Stores a Home in the database
-storeHome :: Home -> ExceptT L.ByteString IO Home
+storeHome :: Home -> ExceptT L.ByteString HasConnection Home
 storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
+  conn <- ask
+  
   -- Randomness for UUID and state
   uuid <- liftIO $ show <$> nextRandom
   oauthState <- liftIO $ show <$> nextRandom
 
   -- Actual insert
-  conn <- liftIO $ connectSqlite3 dbName
   numInserted <-
     liftIO $
       run
@@ -112,44 +114,44 @@ storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
     _ -> throwError "Failed to create home"
 
 -- Retrieves all Homes for the given ownerId
-getUserHomes :: String -> IO [Home]
+getUserHomes :: String -> HasConnection [Home]
 getUserHomes ownerId = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE ownerId = ?")
-    res <- execute stmt [toSql ownerId]
-    homes <- fetchAllRowsAL stmt
-    pure $ mapMaybe parseHomeRow homes
+    conn <- ask
+    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE ownerId = ?")
+    res <- liftIO $ execute stmt [toSql ownerId]
+    homes <- liftIO $ fetchAllRowsAL stmt
+    return $ mapMaybe parseHomeRow homes
 
 -- Retrieves all Homes that are in the Verified  state
-getVerifiedHomes :: IO [Home]
+getVerifiedHomes :: HasConnection [Home]
 getVerifiedHomes = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Verified'")
-    res <- execute stmt []
-    homes <- fetchAllRowsAL stmt
-    pure $ mapMaybe parseHomeRow homes
+    conn <- ask
+    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Verified'")
+    res <- liftIO $ execute stmt []
+    homes <- liftIO $ fetchAllRowsAL stmt
+    return $ mapMaybe parseHomeRow homes
 
 -- Retrieves the Home associated with the given OAuth verification state
-getOauthPendingHome :: String -> IO (Maybe Home)
+getOauthPendingHome :: String -> HasConnection (Maybe Home)
 getOauthPendingHome state = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn
+    conn <- ask
+    stmt <- liftIO $ prepare conn
                     ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Pending' AND oauthState = ?")
-    numRows  <- execute stmt [toSql state]
-    firstHit <- fetchRowAL stmt
+    numRows  <- liftIO $ execute stmt [toSql state]
+    firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
         (Just row) -> return $ parseHomeRow row
         _          -> return Nothing
 
 -- Retrieves a Home from the database
-getHome :: Maybe String -> IO (Maybe Home)
+getHome :: Maybe String -> HasConnection (Maybe Home)
 getHome (Just uuid) = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn
+    conn <- ask
+    stmt <- liftIO $ prepare conn
                     ("SELECT * FROM " ++ homeTableName ++ " WHERE uuid = ?")
-    numRows  <- execute stmt [toSql uuid]
-    firstHit <- fetchRowAL stmt
+    numRows  <- liftIO $ execute stmt [toSql uuid]
+    firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
         (Just row) -> return $ parseHomeRow row
