@@ -56,17 +56,17 @@ loggerName = "Website"
 
 app :: AppCreds -> JWKSet -> Application
 app creds keys request respond = do
+    conn <- connectSqlite3 InfluxDB.dbName
+
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
                                         request
 
-    let lookupAuth = Auth.verifyToken . extractBearerToken <$> getRequestHeader "Authorization" request
+    let lookupAuth = (`runReaderT` conn) . Auth.verifyToken . extractBearerToken <$> getRequestHeader "Authorization" request
 
     currentUser <- case lookupAuth of
                         (Just u) -> rightOrNothing <$> u
                         _ -> pure Nothing
-
-    conn <- connectSqlite3 InfluxDB.dbName
 
     response <- case (requestMethod request, rawPathInfo request) of
         ("GET" , "/"             ) -> pure $ staticResponse "../frontend/index.html"
@@ -74,8 +74,8 @@ app creds keys request respond = do
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
         ("GET" , "/currentUser"  ) -> showUser currentUser
-        ("POST", "/insecureAuth" ) -> renderResponse $ insecureAuth (fst reqBodyParsed)
-        ("POST", "/googleAuth"   ) -> renderResponse $ googleAuth creds keys (fst reqBodyParsed)
+        ("POST", "/insecureAuth" ) -> renderResponse $ mapExceptT (`runReaderT` conn) (insecureAuth (fst reqBodyParsed))
+        ("POST", "/googleAuth"   ) -> renderResponse $ mapExceptT (`runReaderT` conn) (googleAuth creds keys (fst reqBodyParsed))
         ("GET", "/sinks"         ) -> runReaderT (getSinks currentUser) conn
         ("POST", "/sinks"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postSink currentUser (fst reqBodyParsed))
         ("GET", "/homes"         ) -> runReaderT (getHomes currentUser) conn
@@ -198,20 +198,20 @@ showUser Nothing = pure unauthenticated
 showUser (Just user) = pure $ success200Json user
 
 -- POST /insecureAuth
-insecureAuth :: [Param] -> ExceptT ErrorResponse IO Response
+insecureAuth :: [Param] -> ExceptT ErrorResponse HasConnection Response
 insecureAuth params = do
     authParam <- withExceptT BadRequest (lookupParam "auth" params)
     user <- withExceptT (const (InternalServerError "Internal server error")) $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
     loginResponse user
 
 -- POST /googleAuth
-googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse IO Response
+googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse HasConnection Response
 googleAuth creds keys params = do
-    uid <- validateAndGetId creds keys params
+    uid <- mapExceptT liftIO (validateAndGetId creds keys params)
     user <- withExceptT (const (InternalServerError "Internal server error: Could not authenticate user")) $ ExceptT (fetchOrCreateGoogleUser uid)
     loginResponse user
 
-loginResponse :: User -> ExceptT ErrorResponse IO Response
+loginResponse :: User -> ExceptT ErrorResponse HasConnection Response
 loginResponse user = do
     token <- withExceptT (const (InternalServerError "Failed to create token")) (ExceptT $ login (userId user))
     return $ success200 ((L.fromStrict . C.pack) token)

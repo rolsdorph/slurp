@@ -2,6 +2,7 @@
 
 module Auth where
 
+import           DBUtil (HasConnection)
 import           TokenDB
 import           UserDB
 import           Util
@@ -19,20 +20,20 @@ extractBearerToken :: HTTP.Header -> L.ByteString
 extractBearerToken header = SS.replace "Bearer " ("" :: B.ByteString) (snd header)
 
 -- Generates a token for the given user ID
-login :: String -> IO (Either L.ByteString String)
+login :: String -> HasConnection (Either L.ByteString String)
 login uuid = do
     maybeToken <- createToken uuid
     case maybeToken of
-        (Just token) -> pure $ Right token
-        _            -> pure $ Left "Failed to create token"
+        (Just token) -> return $ Right token
+        _            -> return $ Left "Failed to create token"
 
 -- Extracts the user ID associated with the given token
-verifyToken :: TokenVerifier
+verifyToken :: L.ByteString -> HasConnection (Either String User)
 verifyToken token = do
     maybeUserId <- getTokenUserId token
     case maybeUserId of
         (Just uuid) -> getUser uuid
-        _ -> pure $ Left "Unknown token"
+        _ -> return $ Left "Unknown token"
 
-logoutUser :: String -> IO ()
+logoutUser :: String -> HasConnection ()
 logoutUser = deleteUserTokens

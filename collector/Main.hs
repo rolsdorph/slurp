@@ -81,7 +81,7 @@ main = do
       _ <- Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueueName config }
 
       let env = Env {
-          envGetAllUsers = UserDB.getAllUsers
+          envGetAllUsers = runReaderT UserDB.getAllUsers conn
         , envGetUserSs = mapExceptT (`runReaderT` conn) <$> SimpleSourceDB.getUserSimpleSources
         , envGetUserHomes = (`runReaderT` conn) <$> HomeDB.getUserHomes
         , envCollectHome = runCollector . HueHome.collect

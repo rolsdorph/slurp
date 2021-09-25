@@ -12,6 +12,7 @@ import           Database.HDBC
 import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import           Data.ByteString.Lazy as L
+import Control.Monad.Reader (liftIO, ask)
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 tokenTableName = "tokens" :: String
@@ -31,58 +32,59 @@ setupDb = do
     disconnect conn
 
 -- Creates a token for the given user ID
-createToken :: String -> IO (Maybe String)
+createToken :: String -> HasConnection (Maybe String)
 createToken uuid = do
-    token       <- show <$> nextRandom
-    now         <- getCurrentTime
+    conn        <- ask
 
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+    token       <- show <$> liftIO nextRandom
+    now         <- liftIO getCurrentTime
+
+    numInserted <- liftIO $ run
         conn
         (  "INSERT INTO "
         ++ tokenTableName
         ++ "(userId, token, createdAt) VALUES (?, ?, ?)"
         )
         [toSql uuid, toSql token, toSql now]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
 
     case numInserted of
-        1 -> pure $ Just token
-        _ -> pure Nothing
+        1 -> return $ Just token
+        _ -> return Nothing
 
 -- Fetches the user ID associated with a given token
-getTokenUserId :: L.ByteString -> IO (Maybe L.ByteString)
+getTokenUserId :: L.ByteString -> HasConnection (Maybe L.ByteString)
 getTokenUserId token = do
-    conn <- connectSqlite3 dbName
-    stmt <- prepare conn
+    conn <- ask
+    stmt <- liftIO $ prepare conn
                     ("SELECT * FROM " ++ tokenTableName ++ " WHERE token = ?")
-    numRows  <- execute stmt [toSql token]
-    firstHit <- fetchRowAL stmt
-    disconnect conn
+    numRows  <- liftIO $ execute stmt [toSql token]
+    firstHit <- liftIO $ fetchRowAL stmt
+    liftIO $ disconnect conn
 
     case firstHit of
         (Just row) -> return $ valFrom "userId" row
         _          -> return Nothing
 
 -- Deletes all tokens for the given user ID
-deleteUserTokens :: String -> IO ()
+deleteUserTokens :: String -> HasConnection ()
 deleteUserTokens uuid = do
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+    conn        <- ask
+    numInserted <- liftIO $ run
         conn
         ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ?")
         [toSql uuid]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
 
 -- Deletes the given token
-deleteToken :: String -> String -> IO ()
+deleteToken :: String -> String -> HasConnection ()
 deleteToken uuid token = do
-    conn        <- connectSqlite3 dbName
-    numInserted <- run
+    conn        <- ask
+    numInserted <- liftIO $ run
         conn
         ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ? AND token = ?")
         [toSql uuid, toSql token]
-    commit conn
-    disconnect conn
+    liftIO $ commit conn
+    liftIO $ disconnect conn
