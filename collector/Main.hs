@@ -31,7 +31,7 @@ import           Secrets
 import           Types
 import           UserNotification
 import qualified SimpleSource as SS
-import Control.Monad.Except (runExceptT, MonadIO, ExceptT)
+import Control.Monad.Except (runExceptT, MonadIO, ExceptT, mapExceptT)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, header, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
 import Control.Exception (catch)
 import Control.Monad.Reader (ReaderT, asks, liftIO, runReaderT, MonadReader, ask)
@@ -82,7 +82,7 @@ main = do
 
       let env = Env {
           envGetAllUsers = UserDB.getAllUsers
-        , envGetUserSs = SimpleSourceDB.getUserSimpleSources
+        , envGetUserSs = mapExceptT (`runReaderT` conn) <$> SimpleSourceDB.getUserSimpleSources
         , envGetUserHomes = (`runReaderT` conn) <$> HomeDB.getUserHomes
         , envCollectHome = runCollector . HueHome.collect
         , envCollectSs = runCollector . SS.collect

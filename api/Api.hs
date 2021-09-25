@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Api where
 
@@ -26,7 +28,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Reader (runReaderT)
+import           Control.Monad.Reader (runReaderT, ReaderT)
 import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT, lift, mapExceptT)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
@@ -44,7 +46,7 @@ import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
-import           Database.HDBC.Sqlite3 (connectSqlite3)
+import           Database.HDBC.Sqlite3 (connectSqlite3, Connection)
 import           Network.HTTP.Req
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
@@ -78,12 +80,22 @@ app creds keys request respond = do
         ("POST", "/sinks"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postSink currentUser (fst reqBodyParsed))
         ("GET", "/homes"         ) -> runReaderT (getHomes currentUser) conn
         ("POST", "/homes"        ) -> renderResponse $ mapExceptT (`runReaderT` conn) (postHome creds currentUser (fst reqBodyParsed) (queryString request))
-        ("GET", "/simpleSources" ) -> renderResponse $ getSimpleSources currentUser
-        ("POST", "/simpleSources") -> renderResponse $ postSimpleSource currentUser (fst reqBodyParsed)
+        ("GET", "/simpleSources" ) -> renderResponse $ mapExceptT (`runReaderT` conn) (getSimpleSources currentUser)
+        ("POST", "/simpleSources") -> renderResponse $ mapExceptT (\m -> runReaderT (runStack m) conn) (postSimpleSource currentUser (fst reqBodyParsed))
         ("GET" , "/callback"     ) -> renderResponse $ mapExceptT (`runReaderT` conn) (hueOauthCallback creds (queryString request))
         (_     , _               ) -> pure notFound
 
     respond response
+
+newtype SimpleSourceStack a = SimpleSourceStack { runStack :: ReaderT Connection IO a }
+  deriving (Functor, Applicative, Monad)
+
+instance MonadTime SimpleSourceStack where
+  currentTime = currentTime
+
+instance MonadSimpleSource SimpleSourceStack where
+  getUserSimpleSources = getUserSimpleSources
+  storeSimpleSource = storeSimpleSource
 
 data ErrorResponse = BadRequest LB.ByteString
                    | Unauthorized LB.ByteString
@@ -478,13 +490,13 @@ influxSinkFrom currentUser params = do
 -- Attempts to construct a simple JSON source
 simpleSourceFrom :: (MonadTime m) => User -> [Param] -> ExceptT L.ByteString m SimpleSourceDefinition
 simpleSourceFrom currentUser params = do
-  currentTime <- lift currentTime
+  time <- lift currentTime
 
   liftEither $
     SimpleSourceDefinition
       <$> (C.unpack . snd <$> lookupParam "datakey" params)
       <*> return (userId currentUser)
-      <*> return currentTime
+      <*> return time
       <*> (T.pack . C.unpack . snd <$> lookupParam "url" params)
       <*> (snd <$> lookupParam "authHeader" params)
       <*> (eitherDecodeLBS =<< (snd <$> lookupParam "tagMappings" params))

@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module SimpleSourceDB where
 
@@ -13,6 +15,7 @@ import           DBUtil
 import           Types
 import           Util
 import Control.Monad.Except (ExceptT, liftIO, throwError)
+import Control.Monad.Reader (ask)
 
 
 dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
@@ -42,11 +45,11 @@ class Monad m => MonadSimpleSource m where
   storeSimpleSource :: SimpleSourceDefinition -> ExceptT BL.ByteString m SimpleShallowJsonSource
   getUserSimpleSources :: String -> ExceptT BL.ByteString m [SimpleShallowJsonSource]
 
-instance MonadSimpleSource IO where
+instance MonadSimpleSource HasConnection where
   storeSimpleSource source = do
+      conn        <- ask
       uuid        <- liftIO $ show <$> nextRandom
 
-      conn        <- liftIO $ connectSqlite3 dbName
       numInserted <- liftIO $ run
           conn
           ("INSERT INTO "
@@ -71,7 +74,7 @@ instance MonadSimpleSource IO where
           _ -> throwError "Failed to store source"
 
   getUserSimpleSources ownerId = do
-      conn <- liftIO $ connectSqlite3 dbName
+      conn <- ask
       stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE ownerId = ?")
       res <- liftIO $ execute stmt [toSql ownerId]
       sources <- liftIO $ fetchAllRowsAL stmt
