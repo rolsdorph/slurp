@@ -34,11 +34,11 @@ createStmt =
        \ tagMappings text NOT NULL, \
        \ fieldMappings text NOT NULL)"
 
+setupDb :: HasConnection ()
 setupDb = do
-    conn <- connectSqlite3 dbName
-    run conn createStmt []
-    commit conn
-    disconnect conn
+    conn <- ask
+    liftIO $ run conn createStmt []
+    liftIO $ commit conn
 
 class Monad m => MonadSimpleSource m where
   -- TODO: Can we generalize this rather than explicitly returning ExceptT?

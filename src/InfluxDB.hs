@@ -30,11 +30,11 @@ createStmt =
        \ influxUsername text NOT NULL,\
        \ influxPassword text NOT NULL)"
 
+setupDb :: HasConnection ()
 setupDb = do
-    conn <- connectSqlite3 dbName
-    run conn createStmt []
-    commit conn
-    disconnect conn
+    conn <- ask
+    liftIO $ run conn createStmt []
+    liftIO $ commit conn
 
 -- Stores a InfluxSink in the database
 storeInfluxSink :: InfluxDefinition -> ExceptT BL.ByteString HasConnection InfluxSink

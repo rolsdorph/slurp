@@ -31,11 +31,11 @@ createStmt =
        \ authType text DEFAULT 'Insecure',\
        \ thirdPartyId text NULL)"
 
+setupDb :: HasConnection ()
 setupDb = do
-    conn <- connectSqlite3 dbName
-    run conn createStmt []
-    commit conn
-    disconnect conn
+    conn <- ask
+    liftIO $ run conn createStmt []
+    liftIO $ commit conn
 
 getUser :: L.ByteString -> HasConnection (Either String User)
 getUser userId = do

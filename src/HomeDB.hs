@@ -35,11 +35,11 @@ createStmt =
        \ createdAt datetime NULL,\
        \ hueUsername text NULL)"
 
+setupDb :: HasConnection ()
 setupDb = do
-    conn <- connectSqlite3 dbName
-    run conn createStmt []
-    commit conn
-    disconnect conn
+    conn <- ask
+    liftIO $ run conn createStmt []
+    liftIO $ commit conn
 
 -- Stores the updated home
 updateHome :: Home -> HasConnection (Maybe Home)

@@ -25,11 +25,11 @@ createStmt =
        \ token text NOT NULL, \
        \ createdAt datetime NULL)"
 
+setupDb :: HasConnection ()
 setupDb = do
-    conn <- connectSqlite3 dbName
-    run conn createStmt []
-    commit conn
-    disconnect conn
+    conn <- ask
+    liftIO $ run conn createStmt []
+    liftIO $ commit conn
 
 -- Creates a token for the given user ID
 createToken :: String -> HasConnection (Maybe String)

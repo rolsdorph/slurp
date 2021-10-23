@@ -46,7 +46,7 @@ import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
-import           Database.HDBC.Sqlite3 (connectSqlite3, Connection)
+import           Database.HDBC.Sqlite3 (Connection)
 import           Network.HTTP.Req
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
@@ -54,10 +54,8 @@ import           System.Log.Handler.Simple
 
 loggerName = "Website"
 
-app :: AppCreds -> JWKSet -> Application
-app creds keys request respond = do
-    conn <- connectSqlite3 InfluxDB.dbName
-
+app :: Connection -> AppCreds -> JWKSet -> Application
+app conn creds keys request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
                                         lbsBackEnd
                                         request
@@ -115,26 +113,26 @@ renderError (BadRequest msg) = badRequest msg
 renderError (InternalServerError msg) = err500 msg
 renderError _ = err500 "An internal server error occurred."
 
-run :: IO ()
-run = do
+run :: Connection -> IO ()
+run conn = do
     updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
     stdOutHandler <- verboseStreamHandler stdout DEBUG
     updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
     -- Create necessary tables if they don't exist
-    UserDB.setupDb
-    HomeDB.setupDb
-    TokenDB.setupDb
-    InfluxDB.setupDb
-    SimpleSourceDB.setupDb
+    runReaderT UserDB.setupDb conn
+    runReaderT HomeDB.setupDb conn
+    runReaderT TokenDB.setupDb conn
+    runReaderT InfluxDB.setupDb conn
+    runReaderT SimpleSourceDB.setupDb conn
 
     infoM loggerName "http://localhost:8080/"
 
     maybeCreds <- readCreds
     maybeKeys <- loadKeys "resources/certs.json"
     case (maybeCreds, maybeKeys) of
-        (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app oauthCreds keys)
+        (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app conn oauthCreds keys)
         _                            -> emergencyM loggerName "Some secrets not loaded, not running"
 
 -- Helpers for generating responses
