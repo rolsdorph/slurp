@@ -130,7 +130,7 @@ run conn = do
     infoM loggerName "http://localhost:8080/"
 
     maybeCreds <- readCreds
-    maybeKeys <- loadKeys "resources/certs.json"
+    maybeKeys <- fetchKeys
     case (maybeCreds, maybeKeys) of
         (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app conn oauthCreds keys)
         _                            -> emergencyM loggerName "Some secrets not loaded, not running"

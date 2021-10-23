@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8         as C
 import qualified Data.Text                     as T
 
 import Util
+import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET(..), NoReqBody(..), lbsResponse, responseBody, https, (/:))
 
 googleIssuer1 = "accounts.google.com"
 googleIssuer2 = "https://accounts.google.com"
@@ -28,6 +29,11 @@ extractUserId claims = case maybeSub of
 googleValSettings :: StringOrURI -> JWTValidationSettings
 googleValSettings clientId = defaultJWTValidationSettings (== clientId)
     & (jwtValidationSettingsIssuerPredicate .~ (\iss -> iss == googleIssuer1 || iss == googleIssuer2))
+
+fetchKeys :: IO (Maybe JWKSet)
+fetchKeys = do
+  r <- runReq defaultHttpConfig $ req GET (https "www.googleapis.com" /: "oauth2" /: "v3" /: "certs") NoReqBody lbsResponse mempty
+  return $ decode (responseBody r)
 
 loadKeys :: FilePath -> IO (Maybe JWKSet)
 loadKeys path = do
