@@ -60,7 +60,6 @@ storeInfluxSink influx = do
         , toSql $ influxPassword influx
         ]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
     case numInserted of
         1 -> return InfluxSink { influxUuid = uuid, influxDefinition = influx }

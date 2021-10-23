@@ -60,7 +60,6 @@ updateHome newHome = do
         , toSql $ uuid newHome
         ]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
     case numUpdated of
         1 -> return $ Just newHome
@@ -93,7 +92,6 @@ storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
           toSql verificationState
         ]
   liftIO $ commit conn
-  liftIO $ disconnect conn
 
   case numInserted of
     1 ->

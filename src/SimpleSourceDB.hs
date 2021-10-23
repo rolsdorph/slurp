@@ -67,7 +67,6 @@ instance MonadSimpleSource HasConnection where
           , toSql $ encode (fieldMappings source)
           ]
       liftIO $ commit conn
-      liftIO $ disconnect conn
 
       case numInserted of
           1 -> return (SimpleShallowJsonSource { genericSourceId = uuid, ssDefinition = source })

@@ -47,7 +47,6 @@ createToken uuid = do
         )
         [toSql uuid, toSql token, toSql now]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
     case numInserted of
         1 -> return $ Just token
@@ -61,7 +60,6 @@ getTokenUserId token = do
                     ("SELECT * FROM " ++ tokenTableName ++ " WHERE token = ?")
     numRows  <- liftIO $ execute stmt [toSql token]
     firstHit <- liftIO $ fetchRowAL stmt
-    liftIO $ disconnect conn
 
     case firstHit of
         (Just row) -> return $ valFrom "userId" row
@@ -76,7 +74,6 @@ deleteUserTokens uuid = do
         ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ?")
         [toSql uuid]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
 -- Deletes the given token
 deleteToken :: String -> String -> HasConnection ()
@@ -87,4 +84,3 @@ deleteToken uuid token = do
         ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ? AND token = ?")
         [toSql uuid, toSql token]
     liftIO $ commit conn
-    liftIO $ disconnect conn

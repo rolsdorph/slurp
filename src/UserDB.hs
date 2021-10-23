@@ -44,7 +44,6 @@ getUser userId = do
                     ("SELECT * FROM " ++ userTableName ++ " WHERE uuid = ?")
     numRows  <- liftIO $ execute stmt [toSql userId]
     firstHit <- liftIO $ fetchRowAL stmt
-    liftIO $ disconnect conn
 
     case firstHit of
         (Just row) -> return $ parseUserRow row
@@ -68,7 +67,6 @@ fetchOrCreateInsecureUser insecureId = do
         ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
     numRows  <- liftIO $ execute stmt [toSql insecureId]
     firstHit <- liftIO $ fetchRowAL stmt
-    liftIO $ disconnect conn
 
     case firstHit of
         (Just row) -> do
@@ -85,7 +83,6 @@ fetchOrCreateGoogleUser googleId = do
         ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
     numRows  <- liftIO $ execute stmt [toSql googleId]
     firstHit <- liftIO $ fetchRowAL stmt
-    liftIO $ disconnect conn
 
     case firstHit of
         (Just row) -> do
@@ -111,7 +108,6 @@ createGoogleUser googleId = do
         ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Google, toSql googleId]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
     case numInserted of
         1 -> return $ Right newUser
@@ -135,7 +131,6 @@ createInsecureUser insecureId = do
         ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Insecure, toSql insecureId]
     liftIO $ commit conn
-    liftIO $ disconnect conn
 
     case numInserted of
         1 -> return $ Right newUser
