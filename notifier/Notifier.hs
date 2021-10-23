@@ -12,11 +12,14 @@ import qualified Data.List as List
 import Data.UUID.V4
 import GHC.IO.Handle.FD
 import qualified Network.AMQP as Q
+import Control.Monad.Reader (ReaderT, ask, liftIO, runReaderT)
 import Network.WebSockets
 import RabbitMQ
 import System.Log.Handler.Simple
-import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler)
+import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler, emergencyM)
 import Types
+import Secrets (readUserNotificationQueueConfig)
+import qualified Database.HDBC.Sqlite3 as DB
 
 loggerName :: String
 loggerName = "Notifier"
@@ -57,6 +60,19 @@ configureLogging = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
+main' :: DB.Connection -> IO ()
+main' conn = do
+  maybeQueueConfig <- readUserNotificationQueueConfig
+  case maybeQueueConfig of
+    (Just queueConfig) -> runReaderT (app conn) queueConfig
+    _ -> emergencyM Notifier.loggerName "Notification queue config not found, refusing to start"
+
+app :: DB.Connection -> ReaderT QueueConfig IO ()
+app conn = do
+  queueConfig <- ask
+  consumerRegistry <- liftIO $ createConsumerRegistry queueConfig
+  liftIO $ Notifier.run ((`runReaderT` conn) <$> Auth.verifyToken) consumerRegistry
+
 run :: Auth.TokenVerifier -> ConsumerRegistry -> IO ()
 run verifyToken consumerRegistry = do
   configureLogging
@@ -69,7 +85,7 @@ run verifyToken consumerRegistry = do
   forwardEvents connections consumerRegistry
 
   -- Listen for WebSocket events
-  runServer "127.0.0.1" 8090 (app connections verifyToken)
+  runServer "127.0.0.1" 8090 (wsApp connections verifyToken)
 
 forwardEvents :: MVar UserConnections -> ConsumerRegistry -> IO ()
 forwardEvents connectionsVar registerConsumer = do
@@ -93,8 +109,8 @@ sendToUserId target connections message =
 userIdConnections :: String -> UserConnections -> UserConnections
 userIdConnections target = List.filter (\u -> userId (user u) == target)
 
-app :: MVar UserConnections -> Auth.TokenVerifier -> ServerApp
-app connectionVar verifyToken pendingConnection = do
+wsApp :: MVar UserConnections -> Auth.TokenVerifier -> ServerApp
+wsApp connectionVar verifyToken pendingConnection = do
   -- Javascript WS API doesn't support specifying headers... we have to accept everything
   conn <- acceptRequest pendingConnection
 
