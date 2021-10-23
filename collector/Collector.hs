@@ -1,19 +1,56 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 
-module Collector where
+module Collector (app, run, Env(..)) where
 
 import Control.Concurrent (newEmptyMVar, takeMVar, threadDelay, MVar, putMVar)
 import Control.Concurrent.Async
 import Control.Monad
-import Control.Monad.Except (ExceptT, MonadIO, runExceptT)
-import Control.Monad.Reader (MonadReader, ReaderT, ask, asks, liftIO, runReaderT)
+import Control.Monad.Except (ExceptT, MonadIO, runExceptT, mapExceptT)
+import Control.Monad.Reader (MonadReader, ask, asks, liftIO, runReaderT)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LB
 import Data.Time.Clock
 import Types
 import UserNotification
+import qualified Network.AMQP                  as Q
+import qualified SimpleSourceDB
+import qualified HomeDB
+import qualified UserDB
+import           HueHome
+import qualified SimpleSource as SS
+import           Database.HDBC.Sqlite3 (Connection)
+import           GHC.IO.Handle.FD
+import           System.Log.Logger
+import           System.Log.Handler.Simple
+import Secrets (readUserNotificationQueueConfig)
+import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
+import Control.Exception.Base (catch)
+
+loggerName = "Collector"
+
+newtype CollectorStack a = CollectorStack { runCollector :: IO a }
+  deriving (Functor, Applicative, Monad)
+
+instance HasHttp CollectorStack where
+  simpleGet url options = CollectorStack $ do
+    catch
+      ( runReq defaultHttpConfig $ do
+          res <-
+            req
+              GET
+              url
+              NoReqBody
+              lbsResponse
+              options
+          return . Right $ responseBody res
+      )
+      (\ex -> return . Left $ "Failed to collect simple source: " ++ show (ex :: HttpException))
+
+instance HasLogger CollectorStack where
+  infoLog  = CollectorStack . infoM loggerName
+  errorLog = CollectorStack . errorM loggerName
 
 data Env = Env
   { envGetAllUsers :: IO [User],
@@ -78,6 +115,37 @@ instance HasHueHomeCollector Env where
 instance HasIOLogger Env where
   getInfoLog = envLogInfo
   getErrorLog = envLogError
+
+run :: Connection -> IO ()
+run conn = do
+  updateGlobalLogger rootLoggerName removeHandler
+  updateGlobalLogger rootLoggerName $ setLevel DEBUG
+  stdOutHandler <- verboseStreamHandler stdout DEBUG
+  updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+
+  maybeConfig <- readUserNotificationQueueConfig
+  case maybeConfig of
+    (Just config) -> do
+      queueConnection <- liftIO $ Q.openConnection (hostname config) (vhost config) (username config) (password config)
+      queueChannel    <- liftIO $ Q.openChannel queueConnection
+
+      _ <- Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = notiQueueName config }
+      _ <- Q.declareQueue queueChannel $ Q.newQueue { Q.queueName = dataQueueName config }
+
+      let env = Env {
+          envGetAllUsers = runReaderT UserDB.getAllUsers conn
+        , envGetUserSs = mapExceptT (`runReaderT` conn) <$> SimpleSourceDB.getUserSimpleSources
+        , envGetUserHomes = (`runReaderT` conn) <$> HomeDB.getUserHomes
+        , envCollectHome = runCollector . HueHome.collect
+        , envCollectSs = runCollector . SS.collect
+        , envLogInfo = infoM loggerName
+        , envLogError = errorM loggerName
+        , envPublishNotification = rmqPushFunction queueChannel (notiQueueName config)
+        , envPublishData = rmqPushFunction queueChannel (dataQueueName config)
+      }
+
+      runReaderT app env
+    Nothing -> emergencyM loggerName "User notification queue missing, not starting"
 
 app :: (MonadIO m, MonadReader Env m) => m ()
 app = do

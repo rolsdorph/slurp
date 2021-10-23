@@ -1,20 +1,34 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module InfluxPusher where
+module InfluxPusher (run, app, Env(..)) where
 
 import Control.Concurrent (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Concurrent.Async (async)
 import Control.Monad (forM_, forever)
-import Control.Monad.Reader (MonadIO, MonadReader, ask, asks, liftIO)
+import Control.Monad.Reader (MonadIO, MonadReader, ask, asks, liftIO, runReaderT)
 import Data.Aeson (Value, eitherDecode, object, (.=))
 import Data.Time (getCurrentTime)
 import InfluxPublish (InfluxPushResult)
 import qualified InfluxPublish as Influx
 import qualified Network.AMQP as Q
-import RabbitMQ (ConsumerRegistry)
+import RabbitMQ (ConsumerRegistry, createConsumerRegistry)
 import Types
-import UserNotification (notify, publishNotifications)
+import UserNotification (notify, publishNotifications, rmqPushFunction)
+import qualified Database.InfluxDB.Types       as I
+import qualified Data.Text                     as T
+import           InfluxDB
+import           System.Log.Logger
+import           System.Log.Handler.Simple
+import           GHC.IO.Handle.FD
+import Secrets (readUserNotificationQueueConfig)
+import           Database.HDBC.Sqlite3 (Connection)
+
+loggerName :: String
+loggerName = "InfluxPusher"
+
+influxDbName :: I.Database
+influxDbName = "home" -- TODO: Move to the database
 
 data Env = Env
   { envGetUserSinks :: UserId -> IO [InfluxSink],
@@ -63,6 +77,55 @@ logError s = do
   logger <- asks getErrorLog
   liftIO $ logger s
 
+run :: Connection -> IO ()
+run conn = do
+    updateGlobalLogger rootLoggerName removeHandler
+    updateGlobalLogger rootLoggerName $ setLevel DEBUG
+    stdOutHandler <- verboseStreamHandler stdout DEBUG
+    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
+
+    maybeQueueConfig <- readUserNotificationQueueConfig
+    case maybeQueueConfig of
+        (Just queueConfig) -> do
+            queueConnection     <- Q.openConnection (hostname queueConfig)
+                                                    (vhost queueConfig)
+                                                    (username queueConfig)
+                                                    (password queueConfig)
+            queueChannel <- Q.openChannel queueConnection
+
+            _ <- Q.declareQueue queueChannel
+                $ Q.newQueue { Q.queueName = notiQueueName queueConfig }
+            _ <- Q.declareQueue queueChannel
+                $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
+
+            consumerRegistry <- createConsumerRegistry queueConfig
+
+            let env = Env {
+              envLogInfo = infoM loggerName,
+              envLogWarn = warningM loggerName,
+              envLogError = errorM loggerName,
+              envGetUserSinks = (`runReaderT` conn) <$> InfluxDB.getUserInfluxSinks,
+              envInfluxPush = doPush,
+              envPublishNotification = rmqPushFunction queueChannel (notiQueueName queueConfig),
+              envConsumerRegistry = consumerRegistry
+            }
+
+            runReaderT app env
+        _ -> emergencyM
+            loggerName
+            "Notification queue config not found, refusing to start"
+
+doPush :: SourceData -> InfluxDefinition -> IO InfluxPushResult
+doPush dataToPublish sink =
+    Influx.publish
+      (T.pack $ influxHost sink)
+      (influxPort sink)
+      (T.pack $ influxUsername sink)
+      (T.pack $ influxPassword sink)
+      influxDbName
+      (I.Measurement $ T.pack (datakey dataToPublish))
+      (datapoints dataToPublish)
+      
 app :: (MonadIO m, MonadReader Env m) => m ()
 app = do
   env <- ask
