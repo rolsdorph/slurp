@@ -22,7 +22,7 @@ import           HomeDB
 import           SimpleSourceDB
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp      as W
-                                                ( run )
+                                                ( runSettings, setBeforeMainLoop, setPort, defaultSettings )
 import qualified Data.CaseInsensitive          as CI
 import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
@@ -51,6 +51,8 @@ import           Network.HTTP.Req
 import           GHC.IO.Handle.FD
 import           System.Log.Logger
 import           System.Log.Handler.Simple
+import Control.Concurrent.STM.TSem (TSem, signalTSem)
+import Control.Concurrent.STM (atomically)
 
 loggerName = "Website"
 
@@ -113,8 +115,8 @@ renderError (BadRequest msg) = badRequest msg
 renderError (InternalServerError msg) = err500 msg
 renderError _ = err500 "An internal server error occurred."
 
-run :: Connection -> IO ()
-run conn = do
+run :: TSem -> Connection -> IO ()
+run ready conn = do
     updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
     stdOutHandler <- verboseStreamHandler stdout DEBUG
@@ -129,10 +131,14 @@ run conn = do
 
     infoM loggerName "http://localhost:8080/"
 
+    let serverSettings = W.setBeforeMainLoop (atomically $ signalTSem ready) $
+                         W.setPort 8080
+                            W.defaultSettings
+
     maybeCreds <- readCreds
     maybeKeys <- fetchKeys
     case (maybeCreds, maybeKeys) of
-        (Just oauthCreds, Just keys) -> W.run 8080 $ logStdout (app conn oauthCreds keys)
+        (Just oauthCreds, Just keys) -> W.runSettings serverSettings $ logStdout (app conn oauthCreds keys)
         _                            -> emergencyM loggerName "Some secrets not loaded, not running"
 
 -- Helpers for generating responses

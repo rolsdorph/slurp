@@ -15,6 +15,8 @@ import Test.Hspec (Spec, before, describe, hspec, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck
 import TestUtil
 import Types hiding (fromString)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TSem (newTSem, signalTSem, TSem, waitTSem)
 
 loggerName :: String
 loggerName = "Collector tests"
@@ -33,7 +35,8 @@ baseEnv =
       envLogInfo = infoM loggerName,
       envLogError = errorM loggerName,
       envPublishNotification = const $ return (),
-      envPublishData = const $ return ()
+      envPublishData = const $ return (),
+      envSignalReady = return ()
     }
 
 data TestEnv = TestEnv
@@ -42,7 +45,8 @@ data TestEnv = TestEnv
     env :: Env,
     user :: User,
     homeData :: SourceData,
-    simpleSourceData :: SourceData
+    simpleSourceData :: SourceData,
+    readySignal :: TSem
   }
 
 withCapturingEnv :: IO TestEnv
@@ -55,6 +59,7 @@ withCapturingEnv = do
   testSimpleSource <- generate $ testSsFor testUser
   homeData' <- generate $ testSourceDataFor testHome
   simpleSourceData' <- generate $ testSourceDataForSs testSimpleSource
+  readySignal' <- atomically $ newTSem 0
 
   let capturingEnv =
         baseEnv
@@ -64,7 +69,8 @@ withCapturingEnv = do
             envCollectHome = rightIf testHome homeData',
             envCollectSs = rightIf testSimpleSource simpleSourceData',
             envPublishNotification = writeChan notiChan,
-            envPublishData = writeChan dataChan
+            envPublishData = writeChan dataChan,
+            envSignalReady = atomically $ signalTSem readySignal'
           }
 
   return
@@ -74,7 +80,8 @@ withCapturingEnv = do
         env = capturingEnv,
         user = testUser,
         homeData = homeData',
-        simpleSourceData = simpleSourceData'
+        simpleSourceData = simpleSourceData',
+        readySignal = readySignal'
       }
 
 spec :: Spec
@@ -86,6 +93,8 @@ spec = do
         wDataPushes <- async $ waitForElems (dataPushes testEnv) 2
 
         _ <- async $ runReaderT app (env testEnv)
+
+        atomically $ waitTSem (readySignal testEnv)
 
         -- Two notifications: one for the home collection, one for the simple source collection
         sentNotifications <- wait wNotifications

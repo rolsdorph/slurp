@@ -23,6 +23,8 @@ import           System.Log.Handler.Simple
 import           GHC.IO.Handle.FD
 import Secrets (readUserNotificationQueueConfig)
 import           Database.HDBC.Sqlite3 (Connection)
+import Control.Concurrent.STM.TSem (TSem, signalTSem)
+import Control.Concurrent.STM (atomically)
 
 loggerName :: String
 loggerName = "InfluxPusher"
@@ -37,7 +39,8 @@ data Env = Env
     envLogWarn :: String -> IO (),
     envLogError :: String -> IO (),
     envPublishNotification :: MessageToUser -> IO (),
-    envConsumerRegistry :: ConsumerRegistry
+    envConsumerRegistry :: ConsumerRegistry,
+    envSignalReady :: IO ()
   }
 
 class HasSinks a where
@@ -77,8 +80,8 @@ logError s = do
   logger <- asks getErrorLog
   liftIO $ logger s
 
-run :: Connection -> IO ()
-run conn = do
+run :: TSem -> Connection -> IO ()
+run ready conn = do
     updateGlobalLogger rootLoggerName removeHandler
     updateGlobalLogger rootLoggerName $ setLevel DEBUG
     stdOutHandler <- verboseStreamHandler stdout DEBUG
@@ -107,7 +110,8 @@ run conn = do
               envGetUserSinks = (`runReaderT` conn) <$> InfluxDB.getUserInfluxSinks,
               envInfluxPush = doPush,
               envPublishNotification = rmqPushFunction queueChannel (notiQueueName queueConfig),
-              envConsumerRegistry = consumerRegistry
+              envConsumerRegistry = consumerRegistry,
+              envSignalReady = atomically $ signalTSem ready
             }
 
             runReaderT app env
@@ -145,6 +149,8 @@ app = do
   receiveEvents (envConsumerRegistry env) sourceDataMVar
 
   logInfo "Waiting for data collection events"
+
+  liftIO $ envSignalReady env
 
   -- Push data from the MVar onto all sinks for the data owner
   forever $ forwardToInflux sourceDataMVar userNotificationVar

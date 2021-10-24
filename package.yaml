@@ -58,6 +58,7 @@ dependencies:
 - scientific
 - modern-uri
 - QuickCheck
+- stm
 
 library:
   source-dirs: src

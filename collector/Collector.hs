@@ -27,6 +27,8 @@ import           System.Log.Handler.Simple
 import Secrets (readUserNotificationQueueConfig)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
 import Control.Exception.Base (catch)
+import Control.Concurrent.STM.TSem (TSem, signalTSem)
+import Control.Concurrent.STM (atomically)
 
 loggerName = "Collector"
 
@@ -61,7 +63,8 @@ data Env = Env
     envLogInfo :: String -> IO (),
     envLogError :: String -> IO (),
     envPublishNotification :: MessageToUser -> IO (),
-    envPublishData :: SourceData -> IO ()
+    envPublishData :: SourceData -> IO (),
+    envSignalReady :: IO ()
   }
 
 type UserNotifier = UserId -> Value -> IO ()
@@ -116,8 +119,8 @@ instance HasIOLogger Env where
   getInfoLog = envLogInfo
   getErrorLog = envLogError
 
-run :: Connection -> IO ()
-run conn = do
+run :: TSem -> Connection -> IO ()
+run ready conn = do
   updateGlobalLogger rootLoggerName removeHandler
   updateGlobalLogger rootLoggerName $ setLevel DEBUG
   stdOutHandler <- verboseStreamHandler stdout DEBUG
@@ -142,6 +145,7 @@ run conn = do
         , envLogError = errorM loggerName
         , envPublishNotification = rmqPushFunction queueChannel (notiQueueName config)
         , envPublishData = rmqPushFunction queueChannel (dataQueueName config)
+        , envSignalReady = atomically $ signalTSem ready
       }
 
       runReaderT app env
@@ -167,6 +171,8 @@ app = do
       publishNotifications
         (takeMVar dataEventsVar)
         (envPublishData env)
+
+  liftIO $ envSignalReady env
 
   liftIO $ wait publishJob
 

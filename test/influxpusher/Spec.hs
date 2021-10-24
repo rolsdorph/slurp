@@ -16,6 +16,8 @@ import Test.Hspec (Spec, before, describe, hspec, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck hiding (Success)
 import TestUtil
 import Types
+import Control.Concurrent.STM.TSem (TSem, newTSem, signalTSem, waitTSem)
+import Control.Concurrent.STM (atomically)
 
 loggerName :: String
 loggerName = "InfluxPusher tests"
@@ -34,7 +36,8 @@ baseEnv =
       envLogWarn = warningM loggerName,
       envLogError = errorM loggerName,
       envPublishNotification = const $ return (),
-      envConsumerRegistry = const $ return ()
+      envConsumerRegistry = const $ return (),
+      envSignalReady = return ()
     }
 
 data TestEnv = TestEnv
@@ -43,7 +46,8 @@ data TestEnv = TestEnv
     notifications :: Chan MessageToUser,
     env :: Env,
     user :: User,
-    sink :: InfluxSink
+    sink :: InfluxSink,
+    readySignal :: TSem
   }
 
 withCapturingEnv :: IO TestEnv
@@ -53,13 +57,15 @@ withCapturingEnv = do
   notificationCapture <- newChan
   testUser <- getUser <$> generate arbitrary
   testSink <- generate (testSinkFor testUser)
+  readySignal' <- atomically $ newTSem 0
 
   let capturingEnv =
         baseEnv
           { envInfluxPush = \influxPayload target -> writeChan influxCapture (influxPayload, target) >> return Success,
             envConsumerRegistry = writeChan consumerCapture,
             envPublishNotification = writeChan notificationCapture,
-            envGetUserSinks = returnIf testUser testSink
+            envGetUserSinks = returnIf testUser testSink,
+            envSignalReady = atomically $ signalTSem readySignal'
           }
 
   return
@@ -69,7 +75,8 @@ withCapturingEnv = do
         notifications = notificationCapture,
         user = testUser,
         sink = testSink,
-        env = capturingEnv
+        env = capturingEnv,
+        readySignal = readySignal'
       }
 
 spec :: Spec
@@ -84,6 +91,7 @@ spec = do
 
           -- Start the app, wait for it to register a consumer
           _ <- async $ runReaderT app (env testEnv)
+          atomically $ waitTSem (readySignal testEnv)
           msgConsumer <- head <$> wait wConsumers
 
           -- Pass a message to the consumer

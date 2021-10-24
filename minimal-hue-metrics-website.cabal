@@ -74,6 +74,7 @@ library
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -126,6 +127,7 @@ executable hue-metrics-collector-exe
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -176,6 +178,7 @@ executable hue-metrics-server-exe
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -226,6 +229,7 @@ executable influx-pusher-exe
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -276,6 +280,7 @@ executable notifier-exe
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -329,6 +334,7 @@ test-suite api-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -389,6 +395,7 @@ test-suite collector-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -439,6 +446,7 @@ test-suite google-login-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -495,6 +503,7 @@ test-suite influx-pusher-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -548,6 +557,7 @@ test-suite notifier-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time
@@ -598,6 +608,7 @@ test-suite oauth-test
     , regex-base
     , req
     , scientific
+    , stm
     , stringsearch
     , text
     , time

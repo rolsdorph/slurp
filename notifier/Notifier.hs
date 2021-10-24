@@ -20,6 +20,9 @@ import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, r
 import Types
 import Secrets (readUserNotificationQueueConfig)
 import qualified Database.HDBC.Sqlite3 as DB
+import Control.Concurrent.Async (async, wait)
+import Control.Concurrent.STM.TSem (TSem, signalTSem)
+import Control.Concurrent.STM (atomically)
 
 loggerName :: String
 loggerName = "Notifier"
@@ -60,18 +63,20 @@ configureLogging = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-main' :: DB.Connection -> IO ()
-main' conn = do
+main' :: TSem -> DB.Connection -> IO ()
+main' ready conn = do
   maybeQueueConfig <- readUserNotificationQueueConfig
   case maybeQueueConfig of
-    (Just queueConfig) -> runReaderT (app conn) queueConfig
+    (Just queueConfig) -> runReaderT (app ready conn) queueConfig
     _ -> emergencyM Notifier.loggerName "Notification queue config not found, refusing to start"
 
-app :: DB.Connection -> ReaderT QueueConfig IO ()
-app conn = do
+app :: TSem -> DB.Connection -> ReaderT QueueConfig IO ()
+app ready conn = do
   queueConfig <- ask
   consumerRegistry <- liftIO $ createConsumerRegistry queueConfig
-  liftIO $ Notifier.run ((`runReaderT` conn) <$> Auth.verifyToken) consumerRegistry
+  notifierThread <- liftIO . async $ Notifier.run ((`runReaderT` conn) <$> Auth.verifyToken) consumerRegistry
+  liftIO . atomically $ signalTSem ready
+  liftIO $ wait notifierThread
 
 run :: Auth.TokenVerifier -> ConsumerRegistry -> IO ()
 run verifyToken consumerRegistry = do
