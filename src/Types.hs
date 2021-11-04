@@ -96,12 +96,16 @@ fromString s | s == "Verified"  = Verified
              | otherwise       = Unknown
 
 data AuthType = Google | Insecure | UnknownAuth
-              deriving Show
+              deriving (Eq, Show)
 
 instance ToJSON AuthType where
     toJSON Google = "Google"
     toJSON Insecure = "Insecure"
     toJSON _ = "Unknown"
+
+instance FromJSON AuthType where
+  parseJSON =
+    withText "AuthType" (return . authFromString . T.unpack)
 
 instance Convertible AuthType SqlValue where
     safeConvert Google = Right $ toSql ("Google" :: String)
@@ -134,6 +138,16 @@ data SourceData = SourceData {
     datakey :: String,
     datapoints :: [DataPoint]
 } deriving (Show, Eq)
+
+instance FromJSON User where
+  parseJSON =
+    withObject "User"
+      $ \u ->
+       User
+        <$> u .: "userId"
+        <*> u .: "userCreatedAt"
+        <*> u .: "authType"
+        <*> (pure Nothing)
 
 instance ToJSON SourceData where
     toJSON s = object
