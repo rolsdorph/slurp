@@ -131,12 +131,15 @@ type Msg
     | PostedSimpleSource (Result Http.Error SimpleSource)
 
 
+baseUrl : String
+baseUrl = "https://hue.rolsdorph.io"
+
 authorizedJsonGet : String -> String -> (Result Http.Error a -> msg) -> Decoder a -> Cmd msg
-authorizedJsonGet token url successCmd decoder =
+authorizedJsonGet token path successCmd decoder =
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = url
+        , url = baseUrl ++ path
         , body = Http.emptyBody
         , expect = Http.expectJson successCmd decoder
         , timeout = Nothing
@@ -145,11 +148,11 @@ authorizedJsonGet token url successCmd decoder =
 
 
 authorizedJsonPost : String -> String -> Http.Body -> (Result Http.Error a -> msg) -> Decoder a -> Cmd msg
-authorizedJsonPost token url body successCmd decoder =
+authorizedJsonPost token path body successCmd decoder =
     Http.request
         { method = "POST"
         , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-        , url = url
+        , url = baseUrl ++ path
         , body = body
         , expect = Http.expectJson successCmd decoder
         , timeout = Nothing
@@ -159,32 +162,32 @@ authorizedJsonPost token url body successCmd decoder =
 
 postInfluxSink : Model -> String -> Cmd Msg
 postInfluxSink state token =
-    authorizedJsonPost token "https://hue.rolsdorph.io/sinks" (sinkPayload state) PostedInfluxSink influxSinkDecoder
+    authorizedJsonPost token "/sinks" (sinkPayload state) PostedInfluxSink influxSinkDecoder
 
 
 postHome : Model -> String -> Cmd Msg
 postHome state token =
-    authorizedJsonPost token "https://hue.rolsdorph.io/homes?redirectUrlInBody=true" (homePayload state) PostedHome string
+    authorizedJsonPost token "/homes?redirectUrlInBody=true" (homePayload state) PostedHome string
 
 
 postSimpleSource : Model -> String -> Cmd Msg
 postSimpleSource state token =
-    authorizedJsonPost token "https://hue.rolsdorph.io/simpleSources" (simpleSourcePayload state) PostedSimpleSource simpleSourceDecoder
+    authorizedJsonPost token "/simpleSources" (simpleSourcePayload state) PostedSimpleSource simpleSourceDecoder
 
 
 getHomes : String -> Cmd Msg
 getHomes token =
-    authorizedJsonGet token "https://hue.rolsdorph.io/homes" GotHomes (list homeDecoder)
+    authorizedJsonGet token "/homes" GotHomes (list homeDecoder)
 
 
 getInfluxSinks : String -> Cmd Msg
 getInfluxSinks token =
-    authorizedJsonGet token "https://hue.rolsdorph.io/sinks" GotInfluxSinks (list influxSinkDecoder)
+    authorizedJsonGet token "/sinks" GotInfluxSinks (list influxSinkDecoder)
 
 
 getSimpleSources : String -> Cmd Msg
 getSimpleSources token =
-    authorizedJsonGet token "https://hue.rolsdorph.io/simpleSources" GotSimpleSources (list simpleSourceDecoder)
+    authorizedJsonGet token "/simpleSources" GotSimpleSources (list simpleSourceDecoder)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
