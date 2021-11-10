@@ -11,7 +11,7 @@ stopAll () {
 
 startAll() {
     make -C frontend &
-    make -C website &
+    make -C api &
     echo "$! " >> $PIDFILE
     make -C notifier &
     echo "$! " >> $PIDFILE
