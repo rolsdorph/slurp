@@ -73,7 +73,7 @@ main' ready conn = do
 app :: TSem -> DB.Connection -> ReaderT QueueConfig IO ()
 app ready conn = do
   queueConfig <- ask
-  consumerRegistry <- liftIO $ createConsumerRegistry queueConfig
+  consumerRegistry <- liftIO $ createConsumerRegistry queueConfig notiQueueName
   notifierThread <- liftIO . async $ Notifier.run ((`runReaderT` conn) <$> Auth.verifyToken) consumerRegistry
   liftIO . atomically $ signalTSem ready
   liftIO $ wait notifierThread

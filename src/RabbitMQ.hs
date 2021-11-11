@@ -6,6 +6,7 @@ module RabbitMQ
 where
 
 import Control.Monad (void)
+import Data.Text
 import qualified Network.AMQP as Q
 import Types (QueueConfig (..))
 
@@ -13,8 +14,8 @@ type QueueConsumer = Q.Message -> IO ()
 
 type ConsumerRegistry = QueueConsumer -> IO ()
 
-createConsumerRegistry :: QueueConfig -> IO ConsumerRegistry
-createConsumerRegistry queueConfig = do
+createConsumerRegistry :: QueueConfig -> (QueueConfig -> Text) -> IO ConsumerRegistry
+createConsumerRegistry queueConfig queue = do
   conn <-
     Q.openConnection
       (hostname queueConfig)
@@ -22,6 +23,6 @@ createConsumerRegistry queueConfig = do
       (username queueConfig)
       (password queueConfig)
   chan <- Q.openChannel conn
-  _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = notiQueueName queueConfig}
+  _ <- Q.declareQueue chan $ Q.newQueue {Q.queueName = queue queueConfig}
 
-  return $ \h -> void (Q.consumeMsgs chan (notiQueueName queueConfig) Q.NoAck (\(m, _) -> h m))
+  return $ \h -> void (Q.consumeMsgs chan (queue queueConfig) Q.NoAck (\(m, _) -> h m))

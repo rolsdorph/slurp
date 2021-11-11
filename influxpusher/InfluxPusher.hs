@@ -101,7 +101,7 @@ run ready conn = do
             _ <- Q.declareQueue queueChannel
                 $ Q.newQueue { Q.queueName = dataQueueName queueConfig }
 
-            consumerRegistry <- createConsumerRegistry queueConfig
+            consumerRegistry <- createConsumerRegistry queueConfig dataQueueName
 
             let env = Env {
               envLogInfo = infoM loggerName,
