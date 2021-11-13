@@ -28,7 +28,7 @@ import qualified Crypto.JWT                    as J
 import           Crypto.JOSE.JWK
 import qualified Control.Lens                  as Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Reader (runReaderT, ReaderT)
+import           Control.Monad.Reader (runReaderT, ReaderT (..))
 import           Control.Monad.Except (ExceptT (..), runExceptT, liftEither, MonadError, throwError, withExceptT, lift, mapExceptT)
 import           Network.Wai.Parse
 import           Network.Wai.Middleware.RequestLogger
@@ -87,15 +87,15 @@ app conn creds keys request respond = do
 
     respond response
 
-newtype SimpleSourceStack a = SimpleSourceStack { runStack :: ReaderT Connection IO a }
+newtype SimpleSourceStack a = SimpleSourceStack { runStack :: HasConnection a }
   deriving (Functor, Applicative, Monad)
 
 instance MonadTime SimpleSourceStack where
-  currentTime = currentTime
+  currentTime = SimpleSourceStack . ReaderT $ const currentTime
 
 instance MonadSimpleSource SimpleSourceStack where
-  getUserSimpleSources = getUserSimpleSources
-  storeSimpleSource = storeSimpleSource
+  storeSimpleSource = mapExceptT SimpleSourceStack . storeSimpleSource
+  getUserSimpleSources = mapExceptT SimpleSourceStack . getUserSimpleSources
 
 data ErrorResponse = BadRequest LB.ByteString
                    | Unauthorized LB.ByteString
