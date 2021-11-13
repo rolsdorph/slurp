@@ -493,7 +493,7 @@ influxSinkFrom currentUser params = do
       <$> (C.unpack . snd <$> lookupParam "influxHost" params)
       <*> (read . C.unpack . snd <$> lookupParam "influxPort" params)
       <*> (isCheckboxSet <$> lookupParam "influxTLS" params)
-      <*> (C.unpack . snd <$> lookupParam "influxHost" params)
+      <*> (C.unpack . snd <$> lookupParam "influxUsername" params)
       <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
       <*> pure currentTime
 
