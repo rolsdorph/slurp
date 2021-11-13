@@ -16,12 +16,19 @@ import System.Directory (removeFile)
 import Control.Concurrent.Async (async)
 import Network.HTTP.Simple
 import Network.HTTP.Types.Status
-import Control.Concurrent.STM.TSem (newTSem, waitTSem)
+import Control.Concurrent.STM.TSem (newTSem, waitTSem, signalTSem)
 import Control.Concurrent.STM (atomically)
 import Data.ByteString (ByteString)
+import Data.Text (Text)
+import qualified Data.ByteString.UTF8 as U
 import Data.UUID.V4 (nextRandom)
 import Database.HDBC (disconnect)
 import Control.Exception (bracket)
+import qualified Network.WebSockets as WS
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as  W
+import Data.Aeson (Value, object, encode, Value (Bool, Number), eitherDecode, Object)
+import Data.Aeson.Types (parseEither, (.:))
 
 main :: IO ()
 main = hspec spec
@@ -46,6 +53,20 @@ configureEnv = do
     setEnv "spotifyClientId"  "" True
     setEnv "spotifyRedirectUri"  "" True
 
+testData :: Value
+testData = object [("stringKey", "stringValue"), ("trueKey", Bool True), ("intKey", Number 42)]
+
+testServerPort :: Int
+testServerPort =  8077
+
+testServerPort' :: ByteString
+testServerPort' = U.fromString $ show testServerPort
+
+serveTestData :: Wai.Application
+serveTestData request respond = do
+    case (Wai.requestMethod request, Wai.rawPathInfo request) of
+        ("GET" , "/example.json") -> respond $ Wai.responseLBS status200 mempty (encode testData)
+        _ -> respond $ Wai.responseLBS status404 mempty ""
 
 withDb :: (Connection -> IO ()) -> IO ()
 withDb test = do
@@ -65,6 +86,13 @@ spec = describe "e2e functionality" $ do
   around withDb $ do
     it "spins up a server" $ \conn -> do
       configureEnv
+
+      -- Serve up some example JSON for the collector to consume
+      testDataReady <- atomically $ newTSem 0
+      let testServerSettings = W.setBeforeMainLoop (atomically $ signalTSem testDataReady) $
+                               W.setPort testServerPort
+                               W.defaultSettings
+      _  <- async $ W.runSettings testServerSettings serveTestData
 
       collectorReady <- atomically $ newTSem 0
       pusherReady <- atomically $ newTSem 0
@@ -117,10 +145,18 @@ spec = describe "e2e functionality" $ do
       getResponseStatus sourcesResp `shouldBe` status200
       getResponseBody sourcesResp `shouldBe` [createdSource]
 
+      -- Register a WebSocket, wait for a source collection notification
+      receivedNotification <- either error id <$> WS.runClient "127.0.0.1" 8090 "/" (waitForCollection token)
+      fieldOrFail "sourceId" receivedNotification `shouldBe` genericSourceId createdSource
+      fieldOrFail "type" receivedNotification `shouldBe` "SourceCollected"
+
+fieldOrFail :: Text -> Object -> String
+fieldOrFail fieldName obj = either error id $ parseEither (\o -> o .: fieldName) obj
+
 simpleSourceRequest :: [(ByteString, ByteString)]
 simpleSourceRequest = [
                        ("datakey", "e2etestsimplesource"),
-                       ("url", "http://localhost:8081/simpledata.json"),
+                       ("url", "http://localhost:" <> testServerPort' <> "/example.json"),
                        ("authHeader", "mysupersecretauth"),
                        ("tagMappings", "[]"),
                        ("fieldMappings", "[]")
@@ -128,3 +164,9 @@ simpleSourceRequest = [
 
 addAuth :: ByteString -> Request -> Request
 addAuth auth = addRequestHeader "Authorization" ("Bearer " <> auth)
+
+waitForCollection :: ByteString -> WS.Connection -> IO (Either String Object)
+waitForCollection authToken ws = do
+  WS.sendTextData ws authToken
+  notification <- WS.receiveDataMessage ws
+  return . eitherDecode $ WS.fromDataMessage notification
