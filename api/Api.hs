@@ -56,6 +56,9 @@ import Control.Concurrent.STM (atomically)
 
 loggerName = "Website"
 
+defaultPort :: Int
+defaultPort = 8080
+
 app :: Connection -> AppCreds -> JWKSet -> Application
 app conn creds keys request respond = do
     reqBodyParsed <- parseRequestBodyEx defaultParseRequestBodyOptions
@@ -129,10 +132,8 @@ run ready conn = do
     runReaderT InfluxDB.setupDb conn
     runReaderT SimpleSourceDB.setupDb conn
 
-    infoM loggerName "http://localhost:8080/"
-
-    let serverSettings = W.setBeforeMainLoop (atomically $ signalTSem ready) $
-                         W.setPort 8080
+    let serverSettings = W.setBeforeMainLoop (onReady ready defaultPort) $
+                         W.setPort defaultPort
                             W.defaultSettings
 
     maybeCreds <- readCreds
@@ -140,6 +141,11 @@ run ready conn = do
     case (maybeCreds, maybeKeys) of
         (Just oauthCreds, Just keys) -> W.runSettings serverSettings $ logStdout (app conn oauthCreds keys)
         _                            -> emergencyM loggerName "Some secrets not loaded, not running"
+
+onReady :: TSem -> Int -> IO ()
+onReady ready port = do
+  infoM loggerName $ "API running on port " ++ show port
+  atomically $ signalTSem ready
 
 -- Helpers for generating responses
 redirectResponse :: String -> Response
