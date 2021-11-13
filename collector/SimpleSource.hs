@@ -23,17 +23,19 @@ import           Util
 -- Extracts the desired tags and fields from the given JSON source
 collect :: (HasHttp m, HasLogger m) => SimpleShallowJsonSource -> m (Either String SourceData)
 collect source = do
-    let maybeUri = mkURI >=> useHttpsURI $ url (ssDefinition source)
+    let maybeUri = mkURI >=> useURI $ url (ssDefinition source)
     case maybeUri of
-        (Just (uri, _)) -> do
-            res <- simpleGet uri (header "Authorization" (authHeader (ssDefinition source)))
-
-            let decoded = res >>= eitherDecode
-            case decoded of
-                (Right val) -> Right <$> extract source val
-                (Left err) -> return $ Left err
-
+        (Just (Left (httpUri, _))) -> doGet httpUri
+        (Just (Right (httpsUri, _ ))) -> doGet httpsUri
         _ -> return $ Left "Failed to parse collection URL"
+    where
+      doGet :: (HasLogger m, HasHttp m) => Url scheme -> m (Either String SourceData)
+      doGet uri = do
+        res <- simpleGet uri (header "Authorization" (authHeader (ssDefinition source)))
+        let decoded = res >>= eitherDecode
+        case decoded of
+          (Right val) -> Right <$> extract source val
+          (Left err) -> return $ Left err
 
 extract ::
   (HasLogger m) => SimpleShallowJsonSource -> Value -> m SourceData
