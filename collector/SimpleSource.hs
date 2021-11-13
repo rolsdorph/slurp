@@ -25,13 +25,13 @@ collect :: (HasHttp m, HasLogger m) => SimpleShallowJsonSource -> m (Either Stri
 collect source = do
     let maybeUri = mkURI >=> useURI $ url (ssDefinition source)
     case maybeUri of
-        (Just (Left (httpUri, _))) -> doGet httpUri
-        (Just (Right (httpsUri, _ ))) -> doGet httpsUri
+        (Just (Left parsedHttp)) -> doGet parsedHttp
+        (Just (Right parsedHttps)) -> doGet parsedHttps
         _ -> return $ Left "Failed to parse collection URL"
     where
-      doGet :: (HasLogger m, HasHttp m) => Url scheme -> m (Either String SourceData)
+      doGet :: (HasLogger m, HasHttp m) => (Url scheme, Option scheme) -> m (Either String SourceData)
       doGet uri = do
-        res <- simpleGet uri (header "Authorization" (authHeader (ssDefinition source)))
+        res <- simpleGet (fst uri) (snd uri <> header "Authorization" (authHeader (ssDefinition source)))
         let decoded = res >>= eitherDecode
         case decoded of
           (Right val) -> Right <$> extract source val
