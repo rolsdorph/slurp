@@ -18,6 +18,7 @@ import Network.HTTP.Simple
 import Network.HTTP.Types.Status
 import Control.Concurrent.STM.TSem (newTSem, waitTSem)
 import Control.Concurrent.STM (atomically)
+import Data.ByteString (ByteString)
 import Data.UUID.V4 (nextRandom)
 import Database.HDBC (disconnect)
 import Control.Exception (bracket)
@@ -81,6 +82,8 @@ spec = describe "e2e functionality" $ do
         waitTSem notifierReady
         waitTSem apiReady
 
+      putStrLn "All services ready, running E2E tests"
+
       -- Create a new user
       req' <- parseRequest "POST http://localhost:8080/insecureAuth"
       let req = setRequestBodyURLEncoded [("auth", "mysupersecretauth")] req'
@@ -88,13 +91,40 @@ spec = describe "e2e functionality" $ do
 
       getResponseStatus resp `shouldBe` status200
       let token = getResponseBody resp
+      let withAuth = addAuth token
 
-      -- Lookup the logged in user
-      req2' <- parseRequest "GET http://localhost:8080/currentUser"
-      let req2 = addRequestHeader "Authorization" ("Bearer " <> token) req2'
+      -- Look up the logged in user
+      req2 <- withAuth <$> parseRequest "GET http://localhost:8080/currentUser"
       userResp  <- httpJSON req2
 
       getResponseStatus userResp `shouldBe` status200
-      authType (getResponseBody userResp) `shouldBe` Insecure
+      let user = getResponseBody userResp :: User
+      authType user `shouldBe` Insecure
 
-      print (getResponseBody userResp :: User)
+      -- Register a simple source for the user
+      req3' <- withAuth <$> parseRequest "POST http://localhost:8080/simpleSources"
+      let req3 = setRequestBodyURLEncoded simpleSourceRequest req3'
+      postSinkResp <- httpJSON req3
+
+      getResponseStatus postSinkResp `shouldBe` status201
+      let createdSource = getResponseBody postSinkResp :: SimpleShallowJsonSource
+      let sourceDef = ssDefinition createdSource
+      shallowOwnerId sourceDef `shouldBe` userId user
+      authHeader sourceDef `shouldBe` ""  -- Censored in output
+
+      getSourcesReq <- withAuth <$> parseRequest "GET http://localhost:8080/simpleSources"
+      sourcesResp <- httpJSON getSourcesReq
+      getResponseStatus sourcesResp `shouldBe` status200
+      getResponseBody sourcesResp `shouldBe` [createdSource]
+
+simpleSourceRequest :: [(ByteString, ByteString)]
+simpleSourceRequest = [
+                       ("datakey", "e2etestsimplesource"),
+                       ("url", "http://localhost:8081/simpledata.json"),
+                       ("authHeader", "mysupersecretauth"),
+                       ("tagMappings", "[]"),
+                       ("fieldMappings", "[]")
+                      ]
+
+addAuth :: ByteString -> Request -> Request
+addAuth auth = addRequestHeader "Authorization" ("Bearer " <> auth)

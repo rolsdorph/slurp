@@ -295,12 +295,26 @@ data SimpleSourceDefinition = SimpleSourceDefinition {
 } deriving (Eq, Show)
 
 instance ToJSON SimpleShallowJsonSource where
-    toJSON (SimpleShallowJsonSource uuid (SimpleSourceDefinition datakey _ createdAt url _ tagMappings fieldMappings)) =
+    toJSON (SimpleShallowJsonSource uuid (SimpleSourceDefinition datakey ownerId createdAt url _ tagMappings fieldMappings)) =
         object
             [ "id" .= uuid
+            , "ownerId" .= ownerId
             , "datakey" .= datakey
             , "createdAt" .= createdAt
             , "url" .= url
             , "tagMappings" .= tagMappings
             , "fieldMappings" .= fieldMappings
             ]
+
+instance FromJSON SimpleShallowJsonSource where
+  parseJSON = withObject "SimpleShallowJSONSource" $
+    \s -> SimpleShallowJsonSource <$> s .:  "id"
+            <*> (
+              SimpleSourceDefinition <$> s .: "datakey"
+                <*> s .: "ownerId"
+                <*> s .: "createdAt"
+                <*> s .: "url"
+                <*> return "" -- No reason to serialize the auth header at the moment
+                <*> s .: "tagMappings"
+                <*> s .: "fieldMappings"
+               )
