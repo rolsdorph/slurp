@@ -123,6 +123,7 @@ spec = describe "e2e functionality" $ do
         waitTSem pusherReady
         waitTSem notifierReady
         waitTSem apiReady
+        waitTSem testDataReady
 
       putStrLn "All services ready, running E2E tests"
 
