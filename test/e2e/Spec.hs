@@ -53,6 +53,7 @@ configureEnv = do
     setEnv "spotifyClientId"  "" True
     setEnv "spotifyRedirectUri"  "" True
 
+-- * Simple source server
 testData :: Value
 testData = object [("stringKey", "stringValue"), ("trueKey", Bool True), ("intKey", Number 42)]
 
@@ -67,6 +68,19 @@ serveTestData request respond = do
     case (Wai.requestMethod request, Wai.rawPathInfo request) of
         ("GET" , "/example.json") -> respond $ Wai.responseLBS status200 mempty (encode testData)
         _ -> respond $ Wai.responseLBS status404 mempty ""
+
+-- * Fake Influx server
+testInfluxPort :: Int
+testInfluxPort = 8066
+
+testInfluxPort'  :: ByteString
+testInfluxPort' = U.fromString $ show testInfluxPort
+
+testInfluxUsername :: ByteString
+testInfluxUsername = "mysecretinflux"
+
+testInfluxPassword :: ByteString
+testInfluxPassword = "mysecrethunter2"
 
 withDb :: (Connection -> IO ()) -> IO ()
 withDb test = do
@@ -132,10 +146,10 @@ spec = describe "e2e functionality" $ do
       -- Register a simple source for the user
       req3' <- withAuth <$> parseRequest "POST http://localhost:8080/simpleSources"
       let req3 = setRequestBodyURLEncoded simpleSourceRequest req3'
-      postSinkResp <- httpJSON req3
+      postSourceResp <- httpJSON req3
 
-      getResponseStatus postSinkResp `shouldBe` status201
-      let createdSource = getResponseBody postSinkResp :: SimpleShallowJsonSource
+      getResponseStatus postSourceResp `shouldBe` status201
+      let createdSource = getResponseBody postSourceResp :: SimpleShallowJsonSource
       let sourceDef = ssDefinition createdSource
       shallowOwnerId sourceDef `shouldBe` userId user
       authHeader sourceDef `shouldBe` ""  -- Censored in output
@@ -145,7 +159,26 @@ spec = describe "e2e functionality" $ do
       getResponseStatus sourcesResp `shouldBe` status200
       getResponseBody sourcesResp `shouldBe` [createdSource]
 
-      -- Register a WebSocket, wait for a source collection notification
+      -- Register an Influx sink for the user
+      createSink' <- withAuth <$> parseRequest "POST http://localhost:8080/sinks"
+      let createSink = setRequestBodyURLEncoded influxSinkRequest createSink'
+      postSinkResp <- httpJSON createSink
+      getResponseStatus postSinkResp `shouldBe` status201
+      let createdSink = getResponseBody postSinkResp :: InfluxSink
+      let sinkDef = influxDefinition createdSink
+      influxOwnerId sinkDef `shouldBe` userId user
+      influxHost sinkDef `shouldBe` "localhost"
+      influxPort sinkDef `shouldBe` testInfluxPort
+      influxTLS sinkDef `shouldBe` False
+      influxUsername sinkDef `shouldBe` ""
+      influxPassword sinkDef `shouldBe` ""
+
+      getSinksReq <- withAuth <$> parseRequest "GET http://localhost:8080/sinks"
+      sinksResp <- httpJSON getSinksReq
+      getResponseStatus sinksResp `shouldBe` status200
+      getResponseBody sinksResp `shouldBe` [createdSink]
+
+      -- Register a WebSocket, wait for a source collection notification and a sink fed notification
       receivedNotification <- either error id <$> WS.runClient "127.0.0.1" 8090 "/" (waitForCollection token)
       fieldOrFail "sourceId" receivedNotification `shouldBe` genericSourceId createdSource
       fieldOrFail "type" receivedNotification `shouldBe` "SourceCollected"
@@ -161,6 +194,15 @@ simpleSourceRequest = [
                        ("tagMappings", "[]"),
                        ("fieldMappings", "[]")
                       ]
+
+influxSinkRequest :: [(ByteString, ByteString)]
+influxSinkRequest = [
+                     ("influxHost", "localhost"),
+                     ("influxPort", testInfluxPort'),
+                     ("influxTLS", "false"),
+                     ("influxUsername", testInfluxUsername),
+                     ("influxPassword", testInfluxPassword)
+                    ]
 
 addAuth :: ByteString -> Request -> Request
 addAuth auth = addRequestHeader "Authorization" ("Bearer " <> auth)

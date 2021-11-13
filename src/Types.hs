@@ -252,14 +252,28 @@ data InfluxDefinition = InfluxDefinition
   } deriving (Show, Eq)
 
 instance ToJSON InfluxSink where
-    toJSON (InfluxSink uuid (InfluxDefinition _ influxHost influxPort influxTLS _ _ createdAt))
+    toJSON (InfluxSink uuid (InfluxDefinition ownerId influxHost influxPort influxTLS _ _ createdAt))
         = object
             [ "id" .= uuid
+            , "ownerId" .= ownerId
             , "influxHost" .= influxHost
             , "influxPort" .= influxPort
             , "influxTLS" .= influxTLS
             , "createdAt" .= createdAt
             ]
+
+instance FromJSON InfluxSink where
+  parseJSON = withObject "InfluxSink" $
+    \s -> InfluxSink <$> s .: "id"
+            <*> (
+             InfluxDefinition <$> s .: "ownerId"
+                              <*> s .: "influxHost"
+                              <*> s .: "influxPort"
+                              <*> s .: "influxTLS"
+                              <*> return "" -- Username/pw not currently exposed anywhere
+                              <*> return "" -- Username/pw not currently exposed anywhere
+                              <*> s .: "createdAt"
+             )
 
 data MessageToUser = MessageToUser {
     targetUserId :: UserId,
