@@ -30,22 +30,22 @@ type Username = Text
 type Password = Text
 
 publish ::
-  InfluxHost -> Port -> Username -> Password -> Database -> Measurement -> [DataPoint] -> IO InfluxPushResult
-publish host port username password db measurement points =
+  InfluxHost -> Port -> Bool -> Username -> Password -> Database -> Measurement -> [DataPoint] -> IO InfluxPushResult
+publish host port useTLS username password db measurement points =
   catch
     ((writeBatch params measurements) >> pure Success)
     (\ex -> (pure . Error) $ "Failed to push to Influx: " ++ show (ex :: InfluxException))
   where
-    params = mkWriteParams host port username password db
+    params = mkWriteParams host port useTLS username password db
     measurements = map (toLine measurement) points
 
-mkWriteParams :: InfluxHost -> Port -> Username -> Password -> Database -> WriteParams
-mkWriteParams hostName port username password db =
+mkWriteParams :: InfluxHost -> Port -> Bool -> Username -> Password -> Database -> WriteParams
+mkWriteParams hostName port useTLS username password db =
     writeParams db
         &  authentication
         ?~ credentials username password
         &  server
-        .~ (secureServer & host .~ hostName & Database.InfluxDB.port .~ port)
+        .~ (defaultServer & ssl .~ useTLS & host .~ hostName & Database.InfluxDB.port .~ port)
         &  manager
         .~ Left tlsManagerSettings
 

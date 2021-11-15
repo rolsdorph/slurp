@@ -124,6 +124,7 @@ doPush dataToPublish sink =
     Influx.publish
       (T.pack $ influxHost sink)
       (influxPort sink)
+      (influxTLS sink)
       (T.pack $ influxUsername sink)
       (T.pack $ influxPassword sink)
       influxDbName
