@@ -26,6 +26,7 @@ import qualified Data.ByteString.UTF8 as U
 import Data.UUID.V4 (nextRandom)
 import Database.HDBC (disconnect)
 import Control.Exception (bracket)
+import Configuration.Dotenv (loadFile, Config (..))
 import qualified Network.WebSockets as WS
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as  W
@@ -41,13 +42,7 @@ main = hspec spec
 configureEnv :: IO ()
 configureEnv = do
     -- Queue configuration
-    -- TODO: Read from .env
-    setEnv "rmqHost" "127.0.0.1" True
-    setEnv "rmqVhost" "/" True
-    setEnv "rmqUsername" "" True
-    setEnv "rmqPassword" "" True
-    setEnv "userNotificationQueueName" "testUserNotQueue" True
-    setEnv "dataQueueName" "testDataQueue" True
+    _ <- loadFile $ Config [".env"] [] True
 
     -- Third-party client credentials
     setEnv "hueClientId" "" True

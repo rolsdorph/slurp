@@ -449,6 +449,7 @@ test-suite e2e-test
     , convertible
     , cryptohash-md5
     , directory
+    , dotenv
     , hslogger
     , hspec
     , http-client
