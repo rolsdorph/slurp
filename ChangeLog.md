@@ -1,3 +1,3 @@
-# Changelog for minimal-hue-metrics-website
+# Changelog for Slurp
 
 ## Unreleased changes

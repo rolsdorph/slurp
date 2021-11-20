@@ -4,14 +4,13 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           minimal-hue-metrics-website
+name:           slurp
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/minimal-hue-metrics-website#readme>
-homepage:       https://github.com/githubuser/minimal-hue-metrics-website#readme
-bug-reports:    https://github.com/githubuser/minimal-hue-metrics-website/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2020 Author name here
+description:    Please see the README on GitHub at <https://github.com/rolsdorph/slurp#readme>
+homepage:       https://github.com/rolsdorph/slurp#readme
+bug-reports:    https://github.com/rolsdorph/slurp/issues
+author:         Mads Rolsdorph
+maintainer:     m.rolsdorph@gmail.com
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -21,7 +20,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/minimal-hue-metrics-website
+  location: https://github.com/rolsdorph/slurp
 
 library
   exposed-modules:
@@ -43,7 +42,7 @@ library
       UserNotification
       Util
   other-modules:
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       src
   build-depends:
@@ -94,7 +93,7 @@ executable hue-metrics-collector-exe
       Collector
       HueHome
       SimpleSource
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       collector
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -120,64 +119,13 @@ executable hue-metrics-collector-exe
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
-    , stm
-    , stringsearch
-    , text
-    , time
-    , unordered-containers
-    , utf8-string
-    , uuid
-    , vector
-    , wai
-    , wai-extra
-    , warp
-    , websockets
-  default-language: Haskell2010
-
-executable hue-metrics-server-exe
-  main-is: Main.hs
-  other-modules:
-      Api
-      Paths_minimal_hue_metrics_website
-  hs-source-dirs:
-      api
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      HDBC
-    , HDBC-sqlite3
-    , QuickCheck
-    , aeson
-    , amqp
-    , async
-    , base >=4.7 && <5
-    , base16-bytestring
-    , bytestring
-    , case-insensitive
-    , containers
-    , convertible
-    , cryptohash-md5
-    , hslogger
-    , hspec
-    , http-client
-    , http-client-tls
-    , http-types
-    , influxdb
-    , jose
-    , lens
-    , minimal-hue-metrics-website
-    , modern-uri
-    , mtl
-    , pcre-light
-    , regex-base
-    , req
-    , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -196,7 +144,7 @@ executable influx-pusher-exe
   main-is: Main.hs
   other-modules:
       InfluxPusher
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       influxpusher
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -222,13 +170,13 @@ executable influx-pusher-exe
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -247,7 +195,7 @@ executable notifier-exe
   main-is: Main.hs
   other-modules:
       Notifier
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       notifier
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -273,13 +221,64 @@ executable notifier-exe
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
+    , stm
+    , stringsearch
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , vector
+    , wai
+    , wai-extra
+    , warp
+    , websockets
+  default-language: Haskell2010
+
+executable slurp-exe
+  main-is: Main.hs
+  other-modules:
+      Api
+      Paths_slurp
+  hs-source-dirs:
+      api
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HDBC
+    , HDBC-sqlite3
+    , QuickCheck
+    , aeson
+    , amqp
+    , async
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , case-insensitive
+    , containers
+    , convertible
+    , cryptohash-md5
+    , hslogger
+    , hspec
+    , http-client
+    , http-client-tls
+    , http-types
+    , influxdb
+    , jose
+    , lens
+    , modern-uri
+    , mtl
+    , pcre-light
+    , regex-base
+    , req
+    , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -300,7 +299,7 @@ test-suite api-test
   other-modules:
       Api
       Main
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       api
       test/api
@@ -327,13 +326,13 @@ test-suite api-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -360,7 +359,7 @@ test-suite collector-test
       CollectorSpec
       Generators
       TestUtil
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       collector
       test/collector
@@ -388,13 +387,13 @@ test-suite collector-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -425,7 +424,7 @@ test-suite e2e-test
       Main
       Main
       Notifier
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       test/e2e
       test/util
@@ -459,13 +458,13 @@ test-suite e2e-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -484,7 +483,7 @@ test-suite google-login-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       test/google-login
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -510,13 +509,13 @@ test-suite google-login-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -539,7 +538,7 @@ test-suite influx-pusher-test
       Main
       Generators
       TestUtil
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       influxpusher
       test/influxpusher
@@ -567,13 +566,13 @@ test-suite influx-pusher-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -594,7 +593,7 @@ test-suite notifier-test
   other-modules:
       Main
       Notifier
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       notifier
       test/notifier
@@ -621,13 +620,13 @@ test-suite notifier-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
@@ -646,7 +645,7 @@ test-suite oauth-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_minimal_hue_metrics_website
+      Paths_slurp
   hs-source-dirs:
       test/oauth
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -672,13 +671,13 @@ test-suite oauth-test
     , influxdb
     , jose
     , lens
-    , minimal-hue-metrics-website
     , modern-uri
     , mtl
     , pcre-light
     , regex-base
     , req
     , scientific
+    , slurp
     , stm
     , stringsearch
     , text
