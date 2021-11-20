@@ -14,7 +14,6 @@ import           Util
 import Control.Monad.Except (ExceptT, liftIO, throwError)
 import Control.Monad.Reader (MonadReader, ReaderT, ask)
 
-dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 influxTableName = "influxes" :: String
 
 createStmt =

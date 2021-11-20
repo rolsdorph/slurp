@@ -5,7 +5,6 @@ import qualified Data.ByteString.UTF8          as U
 import qualified Data.Text                     as T
 import           System.Environment
 
-
 -- Attempts to read OAuth variables from the environment
 readCreds :: IO (Maybe AppCreds)
 readCreds = do
@@ -49,3 +48,6 @@ readUserNotificationQueueConfig = do
         <*> (T.pack <$> password)
         <*> (T.pack <$> notiQueueName)
         <*> (T.pack <$> dataQueueName)
+
+readDbPath :: IO (Maybe FilePath)
+readDbPath = lookupEnv "sqliteDbPath"

@@ -18,8 +18,8 @@ import Types hiding (fromString)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem (newTSem, signalTSem, TSem, waitTSem)
 
-loggerName :: String
-loggerName = "Collector tests"
+testLoggerName :: String
+testLoggerName = "Collector tests"
 
 main :: IO ()
 main = hspec spec
@@ -32,8 +32,8 @@ baseEnv =
       envGetUserHomes = const $ return [],
       envCollectHome = const . return $ Left "Not implemented",
       envCollectSs = const . return $ Left "Not implemented",
-      envLogInfo = infoM loggerName,
-      envLogError = errorM loggerName,
+      envLogInfo = infoM testLoggerName,
+      envLogError = errorM testLoggerName,
       envPublishNotification = const $ return (),
       envPublishData = const $ return (),
       envSignalReady = return ()

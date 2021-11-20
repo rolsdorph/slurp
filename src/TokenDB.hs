@@ -14,7 +14,6 @@ import           Data.UUID.V4
 import           Data.ByteString.Lazy as L
 import Control.Monad.Reader (liftIO, ask)
 
-dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 tokenTableName = "tokens" :: String
 
 createStmt =

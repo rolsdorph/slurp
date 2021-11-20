@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module InfluxPusher (run, app, Env(..)) where
+module InfluxPusher (run, app, Env(..), loggerName) where
 
 import Control.Concurrent (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Concurrent.Async (async)
@@ -19,8 +19,6 @@ import qualified Database.InfluxDB.Types       as I
 import qualified Data.Text                     as T
 import           InfluxDB
 import           System.Log.Logger
-import           System.Log.Handler.Simple
-import           GHC.IO.Handle.FD
 import Secrets (readUserNotificationQueueConfig)
 import           Database.HDBC.Sqlite3 (Connection)
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
@@ -70,11 +68,6 @@ logInfo s = do
   logger <- asks getInfoLog
   liftIO $ logger s
 
-logWarn :: (MonadIO m, MonadReader env m, HasIOLogger env) => String -> m ()
-logWarn s = do
-  logger <- asks getWarnLog
-  liftIO $ logger s
-
 logError :: (MonadIO m, MonadReader env m, HasIOLogger env) => String -> m ()
 logError s = do
   logger <- asks getErrorLog
@@ -82,11 +75,6 @@ logError s = do
 
 run :: TSem -> Connection -> IO ()
 run ready conn = do
-    updateGlobalLogger rootLoggerName removeHandler
-    updateGlobalLogger rootLoggerName $ setLevel DEBUG
-    stdOutHandler <- verboseStreamHandler stdout DEBUG
-    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
-
     maybeQueueConfig <- readUserNotificationQueueConfig
     case maybeQueueConfig of
         (Just queueConfig) -> do

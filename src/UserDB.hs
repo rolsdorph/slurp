@@ -19,7 +19,6 @@ import           System.Log.Logger
 import Control.Monad.Reader (ask, liftIO)
 
 userDbLoggerName = "UserDB" -- TODO: Just don't export this variable
-dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 userTableName = "users" :: String
 
 createStmt =

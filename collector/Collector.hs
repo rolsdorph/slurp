@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Collector (app, run, Env(..)) where
+module Collector (app, run, Env(..), loggerName) where
 
 import Control.Concurrent (newEmptyMVar, takeMVar, threadDelay, MVar, putMVar)
 import Control.Concurrent.Async
@@ -21,9 +21,7 @@ import qualified UserDB
 import           HueHome
 import qualified SimpleSource as SS
 import           Database.HDBC.Sqlite3 (Connection)
-import           GHC.IO.Handle.FD
 import           System.Log.Logger
-import           System.Log.Handler.Simple
 import Secrets (readUserNotificationQueueConfig)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)
 import Control.Exception.Base (catch)
@@ -121,11 +119,6 @@ instance HasIOLogger Env where
 
 run :: TSem -> Connection -> IO ()
 run ready conn = do
-  updateGlobalLogger rootLoggerName removeHandler
-  updateGlobalLogger rootLoggerName $ setLevel DEBUG
-  stdOutHandler <- verboseStreamHandler stdout DEBUG
-  updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
-
   maybeConfig <- readUserNotificationQueueConfig
   case maybeConfig of
     (Just config) -> do

@@ -16,7 +16,6 @@ import qualified Data.ByteString.Lazy          as L
 import Control.Monad.Except (ExceptT, liftIO, throwError)
 import Control.Monad.Reader (ReaderT, ask)
 
-dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 homeTableName = "homes" :: String
 
 createStmt =

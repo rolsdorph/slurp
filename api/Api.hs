@@ -48,9 +48,7 @@ import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Database.HDBC.Sqlite3 (Connection)
 import           Network.HTTP.Req
-import           GHC.IO.Handle.FD
 import           System.Log.Logger
-import           System.Log.Handler.Simple
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
 import Control.Concurrent.STM (atomically)
 
@@ -120,11 +118,6 @@ renderError _ = err500 "An internal server error occurred."
 
 run :: TSem -> Connection -> IO ()
 run ready conn = do
-    updateGlobalLogger rootLoggerName removeHandler
-    updateGlobalLogger rootLoggerName $ setLevel DEBUG
-    stdOutHandler <- verboseStreamHandler stdout DEBUG
-    updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
-
     -- Create necessary tables if they don't exist
     runReaderT UserDB.setupDb conn
     runReaderT HomeDB.setupDb conn

@@ -19,8 +19,8 @@ import Types
 import Control.Concurrent.STM.TSem (TSem, newTSem, signalTSem, waitTSem)
 import Control.Concurrent.STM (atomically)
 
-loggerName :: String
-loggerName = "InfluxPusher tests"
+testLoggerName :: String
+testLoggerName = "InfluxPusher tests"
 
 main :: IO ()
 main = hspec spec
@@ -32,9 +32,9 @@ baseEnv =
   Env
     { envGetUserSinks = const (return []),
       envInfluxPush = \_ _ -> return Success,
-      envLogInfo = infoM loggerName,
-      envLogWarn = warningM loggerName,
-      envLogError = errorM loggerName,
+      envLogInfo = infoM testLoggerName,
+      envLogWarn = warningM testLoggerName,
+      envLogError = errorM testLoggerName,
       envPublishNotification = const $ return (),
       envConsumerRegistry = const $ return (),
       envSignalReady = return ()

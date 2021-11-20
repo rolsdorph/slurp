@@ -18,7 +18,6 @@ import Control.Monad.Except (ExceptT, liftIO, throwError)
 import Control.Monad.Reader (ask)
 
 
-dbName = "/home/mads/dev/minimal-hue-metrics-website/testdb.sqlite3"
 sourceTableName = "simplejsonsources" :: String
 
 createStmt =
