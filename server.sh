@@ -1,6 +1,7 @@
 #/bin/sh
 
-PIDFILE=/var/run/slurp/slurp.pid
+SLURPDIR=$HOME/.slurp
+PIDFILE="$SLURPDIR/slurp.pid"
 
 COMMAND=$1
 
@@ -10,6 +11,7 @@ stopAll () {
 }
 
 startAll() {
+    mkdir $SLURPDIR
     make -C frontend &
     make -C api &
     echo "$! " >> $PIDFILE
