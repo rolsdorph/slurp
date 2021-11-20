@@ -6,6 +6,7 @@ import Control.Concurrent (Chan, readChan)
 import Data.Time.Calendar (Day (ModifiedJulianDay))
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Types
+import Test.Hspec (Expectation, shouldBe)
 
 someTime :: UTCTime
 someTime = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
@@ -25,3 +26,6 @@ waitForElems dataChan target = go dataChan target []
       readChan dataChan >>= \nextElem -> do
         let newCur = nextElem : cur
         if length newCur == target then return newCur else go chan targetCount newCur
+
+shouldContainPredicate :: [a] -> (a ->  Bool) -> Expectation
+shouldContainPredicate xs p = any p xs `shouldBe` True

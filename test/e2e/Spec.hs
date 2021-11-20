@@ -6,6 +6,7 @@ import qualified InfluxPusher
 import qualified Notifier
 
 
+import TestUtil
 import Types
 
 import           Database.HDBC.Sqlite3 (connectSqlite3, Connection)
@@ -18,7 +19,8 @@ import Network.HTTP.Simple
 import Network.HTTP.Types.Status
 import Control.Concurrent.STM.TSem (newTSem, waitTSem, signalTSem)
 import Control.Concurrent.STM (atomically)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, isInfixOf)
+import Data.ByteString.Lazy (toStrict)
 import Data.Text (Text)
 import qualified Data.ByteString.UTF8 as U
 import Data.UUID.V4 (nextRandom)
@@ -28,7 +30,10 @@ import qualified Network.WebSockets as WS
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as  W
 import Data.Aeson (Value, object, encode, Value (Bool, Number), eitherDecode, Object)
-import Data.Aeson.Types (parseEither, (.:))
+import Data.Aeson.Types ((.:), parseMaybe)
+import Control.Concurrent (Chan, writeChan, newChan, readChan)
+import Control.Monad (replicateM)
+import Network.Wai (queryString, strictRequestBody)
 
 main :: IO ()
 main = hspec spec
@@ -68,6 +73,15 @@ serveTestData request respond = do
     case (Wai.requestMethod request, Wai.rawPathInfo request) of
         ("GET" , "/example.json") -> respond $ Wai.responseLBS status200 mempty (encode testData)
         _ -> respond $ Wai.responseLBS status404 mempty ""
+
+captureInfluxWrites :: Chan (Wai.Request, ByteString) -> Wai.Application
+captureInfluxWrites captureChannel request respond = do
+  case (Wai.requestMethod request, Wai.rawPathInfo request) of
+    ("POST" , "/write") -> do
+      body <- toStrict <$> strictRequestBody request
+      writeChan captureChannel (request, body)
+      respond $ Wai.responseLBS status200 mempty ""
+    _ -> respond $ Wai.responseLBS status404 mempty ""
 
 -- * Fake Influx server
 testInfluxPort :: Int
@@ -113,6 +127,14 @@ spec = describe "e2e functionality" $ do
       notifierReady <- atomically $ newTSem 0
       apiReady <- atomically $ newTSem 0
 
+      -- Listen for Influx measurement posts
+      influxReady <- atomically $ newTSem 0
+      influxChan <- newChan
+      let influxSettings = W.setBeforeMainLoop (atomically $ signalTSem influxReady) $
+                           W.setPort testInfluxPort
+                           W.defaultSettings
+      _  <- async $ W.runSettings influxSettings (captureInfluxWrites influxChan)
+
       _ <- async $ Collector.run collectorReady conn
       _ <- async $ InfluxPusher.run pusherReady conn
       _ <- async $ Notifier.main' notifierReady conn
@@ -124,6 +146,7 @@ spec = describe "e2e functionality" $ do
         waitTSem notifierReady
         waitTSem apiReady
         waitTSem testDataReady
+        waitTSem influxReady
 
       putStrLn "All services ready, running E2E tests"
 
@@ -180,20 +203,36 @@ spec = describe "e2e functionality" $ do
       getResponseBody sinksResp `shouldBe` [createdSink]
 
       -- Register a WebSocket, wait for a source collection notification and a sink fed notification
-      receivedNotification <- either error id <$> WS.runClient "127.0.0.1" 8090 "/" (waitForCollection token)
-      fieldOrFail "sourceId" receivedNotification `shouldBe` genericSourceId createdSource
-      fieldOrFail "type" receivedNotification `shouldBe` "SourceCollected"
+      receivedNotifications <- (fmap . fmap) (either error id) $ WS.runClient "127.0.0.1" 8090 "/" (waitForCollection 2 token)
+      receivedNotifications `shouldContainPredicate` isSourceCollectionFor (genericSourceId createdSource)
+      receivedNotifications `shouldContainPredicate` isSinkFedFor (influxUuid createdSink)
 
-fieldOrFail :: Text -> Object -> String
-fieldOrFail fieldName obj = either error id $ parseEither (\o -> o .: fieldName) obj
+      (writeReq, body) <- readChan influxChan
+      queryString writeReq `shouldContain` [("u", Just testInfluxUsername)]
+      queryString writeReq `shouldContain` [("p", Just testInfluxPassword)]
+      isInfixOf "mappedString=stringValue" body `shouldBe` True
+      isInfixOf "mappedBool=true" body `shouldBe` True
+
+      putStrLn "done"
+
+isSourceCollectionFor :: String -> Object -> Bool
+isSourceCollectionFor sourceId notification = do
+  lookupField "sourceId" notification == Just sourceId && lookupField "type" notification == Just "SourceCollected"
+
+isSinkFedFor :: String -> Object -> Bool
+isSinkFedFor sinkId notification = do
+  lookupField "sinkId" notification == Just sinkId && lookupField "type" notification == Just "SinkFed"
+
+lookupField :: Text -> Object -> Maybe String
+lookupField fieldName = parseMaybe (\o -> o .: fieldName)
 
 simpleSourceRequest :: [(ByteString, ByteString)]
 simpleSourceRequest = [
                        ("datakey", "e2etestsimplesource"),
                        ("url", "http://localhost:" <> testServerPort' <> "/example.json"),
                        ("authHeader", "mysupersecretauth"),
-                       ("tagMappings", "[]"),
-                       ("fieldMappings", "[]")
+                       ("tagMappings", toStrict $ encode [("stringKey" :: String,  "mappedString" :: String)]),
+                       ("fieldMappings", toStrict $ encode [("trueKey" :: String, "mappedBool" :: String)])
                       ]
 
 influxSinkRequest :: [(ByteString, ByteString)]
@@ -208,8 +247,8 @@ influxSinkRequest = [
 addAuth :: ByteString -> Request -> Request
 addAuth auth = addRequestHeader "Authorization" ("Bearer " <> auth)
 
-waitForCollection :: ByteString -> WS.Connection -> IO (Either String Object)
-waitForCollection authToken ws = do
+waitForCollection :: Int -> ByteString -> WS.Connection -> IO [Either String Object]
+waitForCollection numMessages authToken ws = do
   WS.sendTextData ws authToken
-  notification <- WS.receiveDataMessage ws
-  return . eitherDecode $ WS.fromDataMessage notification
+  notifications <- replicateM numMessages (WS.receiveDataMessage ws)
+  return $ eitherDecode . WS.fromDataMessage <$> notifications
