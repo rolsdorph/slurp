@@ -103,6 +103,8 @@ data ErrorResponse = BadRequest LB.ByteString
                    | InternalServerError LB.ByteString
    deriving Show
 
+to500 :: String -> ErrorResponse
+to500 = InternalServerError . LB.fromStrict . U.fromString
 
 renderResponse :: ExceptT ErrorResponse IO Response -> IO Response
 renderResponse eT = mapper <$> runExceptT eT
@@ -204,19 +206,19 @@ showUser (Just user) = pure $ success200Json user
 insecureAuth :: [Param] -> ExceptT ErrorResponse HasConnection Response
 insecureAuth params = do
     authParam <- withExceptT BadRequest (lookupParam "auth" params)
-    user <- withExceptT (const (InternalServerError "Internal server error")) $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
+    user <- withExceptT to500 $ ExceptT (fetchOrCreateInsecureUser (L.fromStrict $ snd authParam))
     loginResponse user
 
 -- POST /googleAuth
 googleAuth :: AppCreds -> JWKSet -> [Param] -> ExceptT ErrorResponse HasConnection Response
 googleAuth creds keys params = do
     uid <- mapExceptT liftIO (validateAndGetId creds keys params)
-    user <- withExceptT (const (InternalServerError "Internal server error: Could not authenticate user")) $ ExceptT (fetchOrCreateGoogleUser uid)
+    user <- withExceptT to500 $ ExceptT (fetchOrCreateGoogleUser uid)
     loginResponse user
 
 loginResponse :: User -> ExceptT ErrorResponse HasConnection Response
 loginResponse user = do
-    token <- withExceptT (const (InternalServerError "Failed to create token")) (ExceptT $ login (userId user))
+    token <- withExceptT InternalServerError $ ExceptT $ login (userId user)
     return $ success200 ((L.fromStrict . C.pack) token)
 
 validateAndGetId
