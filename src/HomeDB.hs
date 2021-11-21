@@ -24,15 +24,15 @@ createStmt =
         ++ " (\
        \ uuid text NOT NULL, \
        \ datakey text NOT NULL, \
-       \ ownerId text NOT NULL, \
+       \ owner_id text NOT NULL, \
        \ state text DEFAULT 'Pending',\
-       \ oauthState text NULL,\
-       \ accessToken text NULL,\
-       \ accessExpiry datetime NULL,\
-       \ refreshToken text NULL,\
-       \ refreshExpiry datetime NULL,\
-       \ createdAt datetime NULL,\
-       \ hueUsername text NULL)"
+       \ oauth_state text NULL,\
+       \ access_token text NULL,\
+       \ access_expiry timestamp NULL,\
+       \ refresh_token text NULL,\
+       \ refresh_expiry timestamp NULL,\
+       \ created_at timestamp NULL,\
+       \ hue_username text NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -48,7 +48,7 @@ updateHome newHome = do
         conn
         ("UPDATE "
         ++ homeTableName
-        ++ " SET state=?, accessToken=?, accessExpiry=?, refreshToken=?, refreshExpiry=?, hueUsername=?"
+        ++ " SET state=?, access_token=?, access_expiry=?, refresh_token=?, refresh_expiry=?, hue_username=?"
         ++ " WHERE uuid=?"
         ) [toSql $ state newHome
         , toSql $ accessToken newHome
@@ -80,7 +80,7 @@ storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
         conn
         ( "INSERT INTO "
             ++ homeTableName
-            ++ "(uuid, datakey, ownerId, createdAt, oauthState, state) \
+            ++ "(uuid, datakey, owner_id, created_at, oauth_state, state) \
                \ VALUES (?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid,
@@ -114,7 +114,7 @@ storeHome (PreCreationHome datakey ownerId createdAt verificationState) = do
 getUserHomes :: String -> HasConnection [Home]
 getUserHomes ownerId = do
     conn <- ask
-    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE ownerId = ?")
+    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ homeTableName ++ " WHERE owner_id = ?")
     res <- liftIO $ execute stmt [toSql ownerId]
     homes <- liftIO $ fetchAllRowsAL stmt
     return $ mapMaybe parseHomeRow homes
@@ -133,7 +133,7 @@ getOauthPendingHome :: String -> HasConnection (Maybe Home)
 getOauthPendingHome state = do
     conn <- ask
     stmt <- liftIO $ prepare conn
-                    ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Pending' AND oauthState = ?")
+                    ("SELECT * FROM " ++ homeTableName ++ " WHERE state = 'Pending' AND oauth_state = ?")
     numRows  <- liftIO $ execute stmt [toSql state]
     firstHit <- liftIO $ fetchRowAL stmt
 
@@ -160,12 +160,12 @@ parseHomeRow vals =
     Home
         <$> valFrom "uuid" vals
         <*> valFrom "datakey" vals
-        <*> valFrom "ownerId" vals
-        <*> valFrom "createdAt" vals
+        <*> valFrom "owner_id" vals
+        <*> valFrom "created_at" vals
         <*> (fromString <$> valFrom "state" vals)
-        <*> valFrom "oauthState" vals
-        <*> pure (valFrom "accessToken" vals)
-        <*> pure (valFrom "refreshToken" vals)
-        <*> pure (valFrom "accessExpiry" vals)
-        <*> pure (valFrom "refreshExpiry" vals)
-        <*> pure (valFrom "hueUsername" vals)
+        <*> valFrom "oauth_state" vals
+        <*> pure (valFrom "access_token" vals)
+        <*> pure (valFrom "refresh_token" vals)
+        <*> pure (valFrom "access_expiry" vals)
+        <*> pure (valFrom "refresh_expiry" vals)
+        <*> pure (valFrom "hue_username" vals)

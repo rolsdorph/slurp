@@ -26,9 +26,9 @@ createStmt =
         ++ userTableName
         ++ " (\
        \ uuid text NOT NULL, \
-       \ createdAt datetime NULL,\
-       \ authType text DEFAULT 'Insecure',\
-       \ thirdPartyId text NULL)"
+       \ created_at timestamp NULL,\
+       \ auth_type text DEFAULT 'Insecure',\
+       \ third_party_id text NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -63,7 +63,7 @@ fetchOrCreateInsecureUser insecureId = do
     conn <- ask
     stmt <- liftIO $ prepare
         conn
-        ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
+        ("SELECT * FROM " ++ userTableName ++ " WHERE third_party_id = ?")
     numRows  <- liftIO $ execute stmt [toSql insecureId]
     firstHit <- liftIO $ fetchRowAL stmt
 
@@ -79,7 +79,7 @@ fetchOrCreateGoogleUser googleId = do
     conn <- ask
     stmt <- liftIO $ prepare
         conn
-        ("SELECT * FROM " ++ userTableName ++ " WHERE thirdPartyId = ?")
+        ("SELECT * FROM " ++ userTableName ++ " WHERE third_party_id = ?")
     numRows  <- liftIO $ execute stmt [toSql googleId]
     firstHit <- liftIO $ fetchRowAL stmt
 
@@ -104,7 +104,7 @@ createGoogleUser googleId = do
         conn
         ("INSERT INTO "
         ++ userTableName
-        ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
+        ++ "(uuid, created_at, auth_type, third_party_id) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Google, toSql googleId]
     liftIO $ commit conn
 
@@ -127,7 +127,7 @@ createInsecureUser insecureId = do
         conn
         ("INSERT INTO "
         ++ userTableName
-        ++ "(uuid, createdAt, authType, thirdPartyId) VALUES (?, ?, ?, ?)")
+        ++ "(uuid, created_at, auth_type, third_party_id) VALUES (?, ?, ?, ?)")
         [toSql uuid, toSql now, toSql Insecure, toSql insecureId]
     liftIO $ commit conn
 
@@ -137,6 +137,6 @@ createInsecureUser insecureId = do
 
 parseUserRow :: [(String, SqlValue)] -> Either String User
 parseUserRow vals =
-    User <$> eitherValFrom "uuid"      vals <*> eitherValFrom "createdAt" vals
-        <*> (authFromString <$> eitherValFrom "authType" vals)
-        <*> eitherValFrom "thirdPartyId" vals
+    User <$> eitherValFrom "uuid"      vals <*> eitherValFrom "created_at" vals
+        <*> (authFromString <$> eitherValFrom "auth_type" vals)
+        <*> eitherValFrom "third_party_id" vals

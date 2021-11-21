@@ -26,12 +26,12 @@ createStmt =
         ++ " (\
        \ uuid text NOT NULL, \
        \ datakey text NOT NULL, \
-       \ ownerId text NOT NULL, \
-       \ createdAt datetime NULL,\
+       \ owner_id text NOT NULL, \
+       \ created_at timestamp NULL,\
        \ url text NOT NULL, \
-       \ authHeader text NULL, \
-       \ tagMappings text NOT NULL, \
-       \ fieldMappings text NOT NULL)"
+       \ auth_header text NULL, \
+       \ tag_mappings text NOT NULL, \
+       \ field_mappings text NOT NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -53,7 +53,7 @@ instance MonadSimpleSource HasConnection where
           conn
           ("INSERT INTO "
           ++ sourceTableName
-          ++ "(uuid, datakey, ownerId, createdAt, url, authHeader, tagMappings, fieldMappings) \
+          ++ "(uuid, datakey, owner_id, created_at, url, auth_header, tag_mappings, field_mappings) \
                                       \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
           )
           [ toSql uuid
@@ -73,7 +73,7 @@ instance MonadSimpleSource HasConnection where
 
   getUserSimpleSources ownerId = do
       conn <- ask
-      stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE ownerId = ?")
+      stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE owner_id = ?")
       res <- liftIO $ execute stmt [toSql ownerId]
       sources <- liftIO $ fetchAllRowsAL stmt
       return $ mapMaybe parseSimpleSourceRow sources
@@ -81,18 +81,18 @@ instance MonadSimpleSource HasConnection where
 
 parseSimpleSourceRow :: [(String, SqlValue)] -> Maybe SimpleShallowJsonSource
 parseSimpleSourceRow vals = do
-  let maybeTags = (decode <=< valFrom "tagMappings") vals
-  let maybeFields = (decode <=< valFrom "fieldMappings") vals
+  let maybeTags = (decode <=< valFrom "tag_mappings") vals
+  let maybeFields = (decode <=< valFrom "field_mappings") vals
 
   case (maybeTags, maybeFields) of
     (Just tags, Just fields) ->
       SimpleShallowJsonSource
         <$> valFrom "uuid" vals
         <*> ( SimpleSourceDefinition <$> valFrom "datakey" vals
-                <*> valFrom "ownerId" vals
-                <*> valFrom "createdAt" vals
+                <*> valFrom "owner_id" vals
+                <*> valFrom "created_at" vals
                 <*> valFrom "url" vals
-                <*> valFrom "authHeader" vals
+                <*> valFrom "auth_header" vals
                 <*> tags
                 <*> fields
             )

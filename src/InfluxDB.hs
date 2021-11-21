@@ -21,13 +21,13 @@ createStmt =
         ++ influxTableName
         ++ " (\
        \ uuid text NOT NULL, \
-       \ ownerId text NOT NULL, \
-       \ createdAt datetime NULL,\
-       \ influxHost text NOT NULL,\
-       \ influxPort text NOT NULL,\
-       \ influxTLS boolean NOT NULL,\
-       \ influxUsername text NOT NULL,\
-       \ influxPassword text NOT NULL)"
+       \ owner_id text NOT NULL, \
+       \ created_at timestamp NULL,\
+       \ influx_host text NOT NULL,\
+       \ influx_port text NOT NULL,\
+       \ influx_tls boolean NOT NULL,\
+       \ influx_username text NOT NULL,\
+       \ influx_password text NOT NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -46,7 +46,7 @@ storeInfluxSink influx = do
         conn
         ("INSERT INTO "
         ++ influxTableName
-        ++ "(uuid, ownerId, createdAt, influxHost, influxPort, influxTLS, influxUsername, influxPassword) \
+        ++ "(uuid, owner_id, created_at, influx_host, influx_port, influx_tls, influx_username, influx_password) \
                                     \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid
@@ -69,7 +69,7 @@ getUserInfluxSinks :: String -> HasConnection [InfluxSink]
 getUserInfluxSinks ownerId = do
     conn <- ask
 
-    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ influxTableName ++ " WHERE ownerId = ?")
+    stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ influxTableName ++ " WHERE owner_id = ?")
     res <- liftIO $ execute stmt [toSql ownerId]
     sinks <- liftIO $ fetchAllRowsAL stmt
     return $ mapMaybe parseInfluxSinkRow sinks
@@ -79,11 +79,11 @@ parseInfluxSinkRow :: [(String, SqlValue)] -> Maybe InfluxSink
 parseInfluxSinkRow vals =
   InfluxSink
     <$> valFrom "uuid" vals
-    <*> ( InfluxDefinition <$> valFrom "ownerId" vals
-            <*> valFrom "influxHost" vals
-            <*> valFrom "influxPort" vals
-            <*> valFrom "influxTLS" vals
-            <*> valFrom "influxUsername" vals
-            <*> valFrom "influxPassword" vals
-            <*> valFrom "createdAt" vals
+    <*> ( InfluxDefinition <$> valFrom "owner_id" vals
+            <*> valFrom "influx_host" vals
+            <*> valFrom "influx_port" vals
+            <*> valFrom "influx_tls" vals
+            <*> valFrom "influx_username" vals
+            <*> valFrom "influx_password" vals
+            <*> valFrom "created_at" vals
         )

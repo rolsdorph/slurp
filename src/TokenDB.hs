@@ -20,9 +20,9 @@ createStmt =
     "CREATE TABLE IF NOT EXISTS "
         ++ tokenTableName
         ++ " (\
-       \ userId text NOT NULL, \
+       \ user_id text NOT NULL, \
        \ token text NOT NULL, \
-       \ createdAt datetime NULL)"
+       \ created_at timestamp NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -42,7 +42,7 @@ createToken uuid = do
         conn
         (  "INSERT INTO "
         ++ tokenTableName
-        ++ "(userId, token, createdAt) VALUES (?, ?, ?)"
+        ++ "(user_id, token, created_at) VALUES (?, ?, ?)"
         )
         [toSql uuid, toSql token, toSql now]
     liftIO $ commit conn
@@ -61,7 +61,7 @@ getTokenUserId token = do
     firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
-        (Just row) -> return $ valFrom "userId" row
+        (Just row) -> return $ valFrom "user_id" row
         _          -> return Nothing
 
 -- Deletes all tokens for the given user ID
@@ -70,7 +70,7 @@ deleteUserTokens uuid = do
     conn        <- ask
     numInserted <- liftIO $ run
         conn
-        ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ?")
+        ("DELETE FROM " ++ tokenTableName ++ " WHERE user_id = ?")
         [toSql uuid]
     liftIO $ commit conn
 
@@ -80,6 +80,6 @@ deleteToken uuid token = do
     conn        <- ask
     numInserted <- liftIO $ run
         conn
-        ("DELETE FROM " ++ tokenTableName ++ " WHERE userId = ? AND token = ?")
+        ("DELETE FROM " ++ tokenTableName ++ " WHERE user_id = ? AND token = ?")
         [toSql uuid, toSql token]
     liftIO $ commit conn
