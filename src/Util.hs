@@ -8,6 +8,7 @@ import qualified Data.ByteString.Char8         as C
 import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString.Lazy          as L
 import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Format (formatTime, defaultTimeLocale)
 
 justOrErr :: L.ByteString -> Maybe a -> Either L.ByteString a
 justOrErr errMsg Nothing  = Left errMsg
@@ -49,3 +50,7 @@ class Monad m => MonadTime m where
 
 instance MonadTime IO where
   currentTime = getCurrentTime
+
+-- Output the "standard" JSON timestamp, but with seconds truncated to three digits
+outputTime :: UTCTime -> String
+outputTime = formatTime defaultTimeLocale "%FT%T.%3qZ"

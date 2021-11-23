@@ -43,6 +43,8 @@ import qualified Data.Text                     as T
 import           Data.Scientific
 import Network.HTTP.Req (Url, Option)
 
+import Util (outputTime)
+
 class (Monad m) => HasHttp m where
   simpleGet :: Url scheme -> Option scheme -> m (Either String LB.ByteString)
 
@@ -129,7 +131,7 @@ instance ToJSON User where
   toJSON u =
     object
       [ "userId" .= userId u,
-        "userCreatedAt" .= userCreatedAt u,
+        "userCreatedAt" .= outputTime (userCreatedAt u),
         "authType" .= authType u
       ]
 data SourceData = SourceData {
@@ -233,7 +235,7 @@ instance ToJSON Home where
             [ "id" .= uuid
             , "datakey" .= homeDataKey
             , "state" .= state
-            , "createdAt" .= createdAt
+            , "createdAt" .= outputTime createdAt
             ]
 
 data InfluxSink = InfluxSink
@@ -259,7 +261,7 @@ instance ToJSON InfluxSink where
             , "influxHost" .= influxHost
             , "influxPort" .= influxPort
             , "influxTLS" .= influxTLS
-            , "createdAt" .= createdAt
+            , "createdAt" .= outputTime createdAt
             ]
 
 instance FromJSON InfluxSink where
@@ -314,7 +316,7 @@ instance ToJSON SimpleShallowJsonSource where
             [ "id" .= uuid
             , "ownerId" .= ownerId
             , "datakey" .= datakey
-            , "createdAt" .= createdAt
+            , "createdAt" .= outputTime createdAt
             , "url" .= url
             , "tagMappings" .= tagMappings
             , "fieldMappings" .= fieldMappings
