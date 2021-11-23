@@ -1,4 +1,8 @@
 SHELL := /bin/bash
 
+include ../.env
+
+.EXPORT_ALL_VARIABLES:
+
 vimux-run-command:
-	source ../loadQueueConfig.sh && stack run hue-metrics-collector-exe
+	stack run hue-metrics-collector-exe

@@ -1,5 +1,9 @@
 SHELL := /bin/bash
 
+include ../.env
+
+.EXPORT_ALL_VARIABLES:
+
 vimux-run-command:
 	./fetchCerts.sh && source loadCreds.sh && stack run slurp-exe
 vimux-build-command:
