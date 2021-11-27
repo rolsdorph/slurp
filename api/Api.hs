@@ -70,7 +70,7 @@ app conn creds keys request respond = do
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"             ) -> pure $ staticResponse "../frontend/index.html"
+        ("GET" , "/"             ) -> pure $ indexResponse
         ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
@@ -154,7 +154,7 @@ staticResponse filePath = responseFile HTTP.status200
                      Nothing
 
 indexResponse :: Response
-indexResponse = staticResponse "index.html"
+indexResponse = staticResponse "../frontend/index.html"
 
 unauthenticated :: Response
 unauthenticated =
