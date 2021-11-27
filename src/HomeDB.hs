@@ -10,7 +10,6 @@ import           Data.Maybe
 import           Data.List
 import           Data.Time.Clock
 import           Database.HDBC
-import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
 import Control.Monad.Except (ExceptT, liftIO, throwError)
@@ -28,10 +27,10 @@ createStmt =
        \ state text DEFAULT 'Pending',\
        \ oauth_state text NULL,\
        \ access_token text NULL,\
-       \ access_expiry timestamp NULL,\
+       \ access_expiry timestamp with time zone NULL,\
        \ refresh_token text NULL,\
-       \ refresh_expiry timestamp NULL,\
-       \ created_at timestamp NULL,\
+       \ refresh_expiry timestamp with time zone NULL,\
+       \ created_at timestamp with time zone NULL,\
        \ hue_username text NULL)"
 
 setupDb :: HasConnection ()

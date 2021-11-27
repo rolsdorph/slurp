@@ -42,7 +42,7 @@ packages:
 # extra-deps: []
 #
 extra-deps:
-  - HDBC-sqlite3-2.3.3.1
+  - HDBC-postgresql-2.5.0.0
   - ghc-exactprint-0.6.3.2@sha256:7399e64eef44ac4a946d1796be0cfe8b73279d2eeb66e2fcf6abbf3f6507888f,9411
 #
 # Override default flag values for local packages and extra-deps

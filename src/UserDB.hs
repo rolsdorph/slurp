@@ -11,7 +11,6 @@ import           Data.Convertible.Base
 import           Data.List
 import           Data.Time.Clock
 import           Database.HDBC
-import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Char8         as C
@@ -26,7 +25,7 @@ createStmt =
         ++ userTableName
         ++ " (\
        \ uuid text NOT NULL, \
-       \ created_at timestamp NULL,\
+       \ created_at timestamp with time zone NULL,\
        \ auth_type text DEFAULT 'Insecure',\
        \ third_party_id text NULL)"
 
@@ -137,6 +136,6 @@ createInsecureUser insecureId = do
 
 parseUserRow :: [(String, SqlValue)] -> Either String User
 parseUserRow vals =
-    User <$> eitherValFrom "uuid"      vals <*> eitherValFrom "created_at" vals
+    User <$> eitherValFrom "uuid" vals <*> eitherValFrom "created_at" vals
         <*> (authFromString <$> eitherValFrom "auth_type" vals)
         <*> eitherValFrom "third_party_id" vals

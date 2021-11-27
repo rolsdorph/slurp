@@ -2,13 +2,13 @@ module Main where
   
 import InfluxPusher (loggerName, run)
 
-import           Database.HDBC.Sqlite3 (connectSqlite3)
+import Database.HDBC.PostgreSQL (connectPostgreSQL)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem (newTSem)
 import System.Log.Logger (updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler, emergencyM)
 import System.Log.Handler.Simple (verboseStreamHandler)
 import System.IO (stdout)
-import Secrets (readDbPath)
+import Secrets (readPgConnInfo)
 
 main :: IO ()
 main = do
@@ -17,10 +17,10 @@ main = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-  dbPath <- readDbPath
-  case dbPath of
-    (Just path) -> do
-        conn <- connectSqlite3 path
+  pgConnInfo <- readPgConnInfo
+  case pgConnInfo of
+    (Just connInfo) -> do
+        conn <- connectPostgreSQL connInfo
         readyVar <- atomically $ newTSem 0
         run readyVar conn
-    Nothing -> emergencyM loggerName "Database path not found, not starting"
+    Nothing -> emergencyM loggerName "PG connection info not found, not starting"

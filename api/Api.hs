@@ -46,7 +46,7 @@ import qualified Data.Text                     as T
 import           Data.Time
 import           Data.Time.Clock
 import qualified Data.Vector                   as V
-import           Database.HDBC.Sqlite3 (Connection)
+import           Database.HDBC.PostgreSQL (Connection)
 import           Network.HTTP.Req
 import           System.Log.Logger
 import Control.Concurrent.STM.TSem (TSem, signalTSem)

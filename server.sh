@@ -5,14 +5,13 @@ PIDFILE="$SLURPDIR/slurp.pid"
 
 COMMAND=$1
 
-export sqliteDbPath="$(pwd)/slurp.sqlite3"
-
 stopAll () {
     xargs kill < $PIDFILE
     rm $PIDFILE
 }
 
 startAll() {
+    # TODO: consider a separate migration script here
     mkdir $SLURPDIR
     make -C frontend &
     make -C api &

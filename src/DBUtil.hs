@@ -6,7 +6,7 @@ import           Data.Convertible.Base
 import           Data.List
 import           Database.HDBC
 import Control.Monad.Reader (ReaderT)
-import           Database.HDBC.Sqlite3 (Connection)
+import           Database.HDBC.PostgreSQL (Connection)
 
 type HasConnection = ReaderT Connection IO
 

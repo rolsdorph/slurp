@@ -9,7 +9,6 @@ import           DBUtil
 import           Data.Maybe
 import           Data.Time.Clock
 import           Database.HDBC
-import           Database.HDBC.Sqlite3
 import           Data.UUID.V4
 import           Data.ByteString.Lazy as L
 import Control.Monad.Reader (liftIO, ask)
@@ -22,7 +21,7 @@ createStmt =
         ++ " (\
        \ user_id text NOT NULL, \
        \ token text NOT NULL, \
-       \ created_at timestamp NULL)"
+       \ created_at timestamp with time zone NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do

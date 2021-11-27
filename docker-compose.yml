@@ -6,3 +6,12 @@ services:
             - RABBITMQ_DEFAULT_PASS=$rmqPassword
         ports:
             - 5672:5672
+
+    postgres:
+        image: postgres
+        environment:
+            - POSTGRES_USER=$pgUsername
+            - POSTGRES_PASSWORD=$pgPassword
+            - POSTGRES_DB=$pgDb
+        ports:
+          - 5432:5432

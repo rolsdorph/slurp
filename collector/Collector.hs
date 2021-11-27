@@ -20,7 +20,7 @@ import qualified HomeDB
 import qualified UserDB
 import           HueHome
 import qualified SimpleSource as SS
-import           Database.HDBC.Sqlite3 (Connection)
+import           Database.HDBC.PostgreSQL (Connection)
 import           System.Log.Logger
 import Secrets (readUserNotificationQueueConfig)
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET (..), NoReqBody (..), lbsResponse, responseBody, HttpException)

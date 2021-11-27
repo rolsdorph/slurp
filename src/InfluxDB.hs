@@ -5,7 +5,6 @@ module InfluxDB
 
 import qualified Data.ByteString.Lazy as BL
 import           Database.HDBC
-import           Database.HDBC.Sqlite3
 import           Data.Maybe
 import           Data.UUID.V4
 import           DBUtil
@@ -22,7 +21,7 @@ createStmt =
         ++ " (\
        \ uuid text NOT NULL, \
        \ owner_id text NOT NULL, \
-       \ created_at timestamp NULL,\
+       \ created_at timestamp with time zone NULL,\
        \ influx_host text NOT NULL,\
        \ influx_port text NOT NULL,\
        \ influx_tls boolean NOT NULL,\

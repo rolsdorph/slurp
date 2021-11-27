@@ -19,7 +19,7 @@ import System.Log.Handler.Simple
 import System.Log.Logger (infoM, warningM, updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler, emergencyM)
 import Types
 import Secrets (readUserNotificationQueueConfig)
-import qualified Database.HDBC.Sqlite3 as DB
+import qualified Database.HDBC.PostgreSQL as DB
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
 import Control.Concurrent.STM (atomically)

@@ -20,7 +20,7 @@ import qualified Data.Text                     as T
 import           InfluxDB
 import           System.Log.Logger
 import Secrets (readUserNotificationQueueConfig)
-import           Database.HDBC.Sqlite3 (Connection)
+import           Database.HDBC.PostgreSQL (Connection)
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
 import Control.Concurrent.STM (atomically)
 

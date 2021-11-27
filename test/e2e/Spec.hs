@@ -4,16 +4,16 @@ import qualified Api
 import qualified Collector
 import qualified InfluxPusher
 import qualified Notifier
+import Secrets
 
 
 import TestUtil
 import Types
 
-import           Database.HDBC.Sqlite3 (connectSqlite3, Connection)
+import Database.HDBC.PostgreSQL (connectPostgreSQL, Connection)
 
 import Test.Hspec
 import System.Environment.Blank (setEnv)
-import System.Directory (removeFile)
 import Control.Concurrent.Async (async)
 import Network.HTTP.Simple
 import Network.HTTP.Types.Status
@@ -24,7 +24,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Text (Text)
 import qualified Data.ByteString.UTF8 as U
 import Data.UUID.V4 (nextRandom)
-import Database.HDBC (disconnect)
+import Database.HDBC (disconnect, run, commit)
 import Control.Exception (bracket)
 import Configuration.Dotenv (loadFile, Config (..))
 import qualified Network.WebSockets as WS
@@ -91,25 +91,37 @@ testInfluxUsername = "mysecretinflux"
 testInfluxPassword :: ByteString
 testInfluxPassword = "mysecrethunter2"
 
-withDb :: (Connection -> IO ()) -> IO ()
-withDb test = do
-  dbName <- show <$> nextRandom
-  bracket (createDb dbName) (deleteDb dbName) test
+withDbAndEnv :: (Connection -> IO ()) -> IO ()
+withDbAndEnv test = do
+  configureEnv
+  schemaName <- show <$> nextRandom
+  setEnv "pgSchema" schemaName True
+  bracket (createDb schemaName) (deleteDb schemaName) test
 
-createDb :: FilePath -> IO Connection
-createDb = connectSqlite3
+quote :: String -> String
+quote s = "\"" ++ s ++ "\""
 
-deleteDb :: FilePath -> Connection -> IO ()
-deleteDb fp conn = do
+createDb :: String -> IO Connection
+createDb schemaName = do
+  maybeConnInfo <- readPgConnInfo
+  case maybeConnInfo of
+    Just connInfo -> do
+      conn <- connectPostgreSQL connInfo
+      _ <- run conn ("CREATE SCHEMA " ++ quote schemaName) []
+      commit conn
+      _ <- run conn ("SET search_path TO " ++ quote schemaName) []
+      return conn
+    Nothing -> error "Connection info not found"
+
+deleteDb :: String -> Connection -> IO ()
+deleteDb schemaName conn = do
+  _ <- run conn ("DROP SCHEMA " ++ quote schemaName ++ " CASCADE") []
   disconnect conn
-  removeFile fp
 
 spec :: Spec
 spec = describe "e2e functionality" $ do
-  around withDb $ do
+  around withDbAndEnv $ do
     it "spins up a server" $ \conn -> do
-      configureEnv
-
       -- Serve up some example JSON for the collector to consume
       testDataReady <- atomically $ newTSem 0
       let testServerSettings = W.setBeforeMainLoop (atomically $ signalTSem testDataReady) $

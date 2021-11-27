@@ -47,7 +47,7 @@ library
       src
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -99,7 +99,7 @@ executable hue-metrics-collector-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -150,7 +150,7 @@ executable influx-pusher-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -201,7 +201,7 @@ executable notifier-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -252,7 +252,7 @@ executable slurp-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -306,7 +306,7 @@ test-suite api-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -367,7 +367,7 @@ test-suite collector-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -435,7 +435,7 @@ test-suite e2e-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -489,7 +489,7 @@ test-suite google-login-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -546,7 +546,7 @@ test-suite influx-pusher-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -600,7 +600,7 @@ test-suite notifier-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp
@@ -651,7 +651,7 @@ test-suite oauth-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HDBC
-    , HDBC-sqlite3
+    , HDBC-postgresql
     , QuickCheck
     , aeson
     , amqp

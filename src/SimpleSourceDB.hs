@@ -8,7 +8,6 @@ import           Control.Monad
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import           Database.HDBC
-import           Database.HDBC.Sqlite3
 import           Data.Maybe
 import           Data.UUID.V4
 import           DBUtil
@@ -27,7 +26,7 @@ createStmt =
        \ uuid text NOT NULL, \
        \ datakey text NOT NULL, \
        \ owner_id text NOT NULL, \
-       \ created_at timestamp NULL,\
+       \ created_at timestamp with time zone NULL,\
        \ url text NOT NULL, \
        \ auth_header text NULL, \
        \ tag_mappings text NOT NULL, \

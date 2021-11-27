@@ -49,5 +49,18 @@ readUserNotificationQueueConfig = do
         <*> (T.pack <$> notiQueueName)
         <*> (T.pack <$> dataQueueName)
 
-readDbPath :: IO (Maybe FilePath)
-readDbPath = lookupEnv "sqliteDbPath"
+readPgConnInfo :: IO (Maybe String)
+readPgConnInfo = do
+  user <- lookupEnv "pgUsername"
+  pw <- lookupEnv "pgPassword"
+  db <- lookupEnv "pgDb"
+  host <- lookupEnv "pgHost"
+
+  case (user, pw, db, host) of
+    (Just u, Just p, Just d, Just h) ->
+       return . Just . toConnString $ [("dbname", d), ("host", h), ("user", u), ("password", p)]
+    _ -> return Nothing
+
+  where
+    toConnString :: [(String, String)] -> String
+    toConnString = unwords . map (\(k, v) -> k ++ "=" ++ v)

@@ -30,7 +30,7 @@ dependencies:
 - time
 - text
 - HDBC
-- HDBC-sqlite3
+- HDBC-postgresql
 - uuid
 - req
 - utf8-string
