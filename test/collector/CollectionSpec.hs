@@ -125,7 +125,11 @@ spec = do
           datapoints sourceData
             `shouldBe` [ DataPoint
                            { tags = [("name", StringValue "my-light"), ("uuid", StringValue "some-uuid"), ("type", StringValue "lighttype")],
-                             fields = [("on", BoolValue True), ("brightness", IntValue 1), ("hue", IntValue 2), ("saturation", IntValue 1337), ("xcolor", DoubleValue 4.0), ("ycolor", DoubleValue 2.0), ("ctTemp", IntValue 42), ("reachable", BoolValue True)]
+                             fields = [("on", BoolValue True), ("reachable", BoolValue True), ("brightness", IntValue 1), ("hue", IntValue 2), ("saturation", IntValue 1337), ("xcolor", DoubleValue 4.0), ("ycolor", DoubleValue 2.0), ("ctTemp", IntValue 42)]
+                           },
+                           DataPoint
+                           { tags = [("name", StringValue "my-other-light"), ("uuid", StringValue "some-other-uuid"), ("type", StringValue "notsofancy")],
+                             fields = [("on", BoolValue True), ("reachable", BoolValue True)]
                            }
                        ]
 
@@ -211,6 +215,20 @@ lightsResponse =
                   ("xy", Array $ fromList [Number 4, Number 2]),
                   ("ct", Number 42),
                   ("reachable", Bool True)
+                ]
+            )
+          ]
+      ),
+      ( "2",
+        object
+          [ ("name", "my-other-light"),
+            ("uniqueid", "some-other-uuid"),
+            ("type", "notsofancy"),
+            ( "state",
+              object
+                [ ("on", Bool True),
+                  ("reachable", Bool True),
+                  ("unknownField", Number 1337) -- Ignored by collector
                 ]
             )
           ]

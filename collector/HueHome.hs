@@ -71,15 +71,15 @@ toDataPoint l = T.DataPoint {
     tags = [("name", T.StringValue $ name l)
              , ("uuid", T.StringValue $ lightId l)
              , ("type", T.StringValue $ typeName l)],
-    fields =
-        [ ("on"        , T.BoolValue $ on l)
-        , ("brightness", T.IntValue $ brightness l)
-        , ("hue"       , T.IntValue $ hue l)
-        , ("saturation", T.IntValue $ saturation l)
-        , ("xcolor"    , T.DoubleValue (fst . xyColor $ l))
-        , ("ycolor"    , T.DoubleValue (snd . xyColor $ l))
-        , ("ctTemp"    , T.IntValue $ ctTemp l)
-        , ("reachable" , T.BoolValue $ reachable l)
+    fields = catMaybes
+        [ Just ("on"        , T.BoolValue $ on l)
+        , Just ("reachable" , T.BoolValue $ reachable l)
+        , (\v -> ("brightness", T.IntValue v)) <$> brightness l
+        , (\v -> ("hue", T.IntValue v)) <$> hue l
+        , (\v -> ("saturation", T.IntValue v)) <$> saturation l
+        , (\v -> ("xcolor", T.DoubleValue . fst $ v)) <$> xyColor l
+        , (\v -> ("ycolor", T.DoubleValue . snd $ v)) <$> xyColor l
+        , (\v -> ("ctTemp", T.IntValue v)) <$> ctTemp l
         ]
 }
 
@@ -88,12 +88,12 @@ data Light = Light
     lightId :: String,
     typeName :: String,
     on :: Bool,
-    brightness :: Int,
-    hue :: Int,
-    saturation :: Int,
-    xyColor :: (Double, Double),
-    ctTemp :: Int,
-    reachable :: Bool
+    reachable :: Bool,
+    brightness :: Maybe Int,
+    hue :: Maybe Int,
+    saturation :: Maybe Int,
+    xyColor :: Maybe (Double, Double),
+    ctTemp :: Maybe Int
   }
   deriving (Show, Eq)
 
@@ -104,9 +104,9 @@ instance FromJSON Light where
       <*> l .: "uniqueid"
       <*> l .: "type"
       <*> (lightState .: "on")
-      <*> (lightState .: "bri")
-      <*> (lightState .: "hue")
-      <*> (lightState .: "sat")
-      <*> (lightState .: "xy")
-      <*> (lightState .: "ct")
       <*> (lightState .: "reachable")
+      <*> (lightState .:? "bri")
+      <*> (lightState .:? "hue")
+      <*> (lightState .:? "sat")
+      <*> (lightState .:? "xy")
+      <*> (lightState .:? "ct")
