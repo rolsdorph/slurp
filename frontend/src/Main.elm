@@ -132,7 +132,7 @@ type Msg
 
 
 baseUrl : String
-baseUrl = "https://hue.rolsdorph.io"
+baseUrl = "https://slurp.rolsdorph.io"
 
 authorizedJsonGet : String -> String -> (Result Http.Error a -> msg) -> Decoder a -> Cmd msg
 authorizedJsonGet token path successCmd decoder =

@@ -2,12 +2,12 @@
     <head>
         <title>Sign in</title>
         <script src="https://apis.google.com/js/platform.js" async defer></script>
-        <meta name="google-signin-client_id" content="761315386200-igpue1ops059mor7uh3n5q7qnm4vb6k5.apps.googleusercontent.com">
+        <meta name="google-signin-client_id" content="1061901568048-l65uiqg453ptkl86lms5cg3snjhmqdpf.apps.googleusercontent.com">
 
 		<script>
 			function onSignIn(user) {
 				var xhr = new XMLHttpRequest();
-				xhr.open('POST', 'https://hue.rolsdorph.io/googleAuth');
+				xhr.open('POST', 'https://slurp.rolsdorph.io/googleAuth');
 				xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 				xhr.onload = function () {
                     window.localStorage.setItem("authToken", xhr.responseText);
