@@ -2,14 +2,13 @@
 
 module Main where
 
-import Database.HDBC.PostgreSQL (connectPostgreSQL)
 import qualified Notifier
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem (newTSem)
 import System.Log.Logger (updateGlobalLogger, rootLoggerName, removeHandler, setLevel, Priority (DEBUG), addHandler, emergencyM)
 import System.Log.Handler.Simple (verboseStreamHandler)
 import System.IO (stdout)
-import Secrets (readPgConnInfo)
+import DBUtil (connectPsql)
 
 main :: IO ()
 main = do
@@ -18,10 +17,9 @@ main = do
   stdOutHandler <- verboseStreamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName $ addHandler stdOutHandler
 
-  pgConnInfo <- readPgConnInfo
-  case pgConnInfo of
-    (Just connInfo) -> do
-      conn <- connectPostgreSQL connInfo
+  pgConn <- connectPsql
+  case pgConn of
+    (Just conn) -> do
       readyVar <- atomically $ newTSem 0
       Notifier.main' readyVar conn
     Nothing -> emergencyM Notifier.loggerName "PG connection info not found, not starting"

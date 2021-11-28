@@ -6,9 +6,25 @@ import           Data.Convertible.Base
 import           Data.List
 import           Database.HDBC
 import Control.Monad.Reader (ReaderT)
-import           Database.HDBC.PostgreSQL (Connection)
+import           Database.HDBC.PostgreSQL (Connection, connectPostgreSQL)
+import System.Environment (lookupEnv)
+import Secrets (readPgConnInfo)
 
 type HasConnection = ReaderT Connection IO
+
+connectPsql :: IO (Maybe Connection)
+connectPsql = do
+  pgConnInfo <- readPgConnInfo
+  pgSchema <- lookupEnv "pgSchema"
+  case (pgConnInfo, pgSchema) of
+    (Just connString, Just schema) -> do
+      conn <- connectPostgreSQL connString
+      _ <- run conn ("SET search_path TO " ++ quote schema) []
+      return $ Just conn
+    _ -> return Nothing
+
+quote :: String -> String
+quote s = "\"" ++ s ++ "\""
 
 eitherValFrom
     :: Convertible SqlValue a

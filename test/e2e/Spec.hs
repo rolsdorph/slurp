@@ -7,6 +7,7 @@ import qualified Notifier
 import Secrets
 
 
+import DBUtil
 import TestUtil
 import Types
 
@@ -103,9 +104,6 @@ withDbAndEnv test = do
   schemaName <- show <$> nextRandom
   setEnv "pgSchema" schemaName True
   bracket (createDb schemaName) (deleteDb schemaName) test
-
-quote :: String -> String
-quote s = "\"" ++ s ++ "\""
 
 createDb :: String -> IO Connection
 createDb schemaName = do
