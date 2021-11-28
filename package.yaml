@@ -103,6 +103,16 @@ executables:
     dependencies:
     - slurp
 
+  dbtool-exe:
+    main:                Main.hs
+    source-dirs:         dbtool
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - slurp
+
 tests:
   api-test:
     main:                Spec.hs

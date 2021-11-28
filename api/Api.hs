@@ -119,13 +119,6 @@ renderError _ = err500 "An internal server error occurred."
 
 run :: TSem -> Connection -> IO ()
 run ready conn = do
-    -- Create necessary tables if they don't exist
-    runReaderT UserDB.setupDb conn
-    runReaderT HomeDB.setupDb conn
-    runReaderT TokenDB.setupDb conn
-    runReaderT InfluxDB.setupDb conn
-    runReaderT SimpleSourceDB.setupDb conn
-
     let serverSettings = W.setBeforeMainLoop (onReady ready defaultPort) $
                          W.setPort defaultPort
                             W.defaultSettings

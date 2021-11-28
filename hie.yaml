@@ -10,5 +10,7 @@ cradle:
       component: "slurp:exe:notifier-exe"
     - path: "./influxpusher"
       component: "slurp:exe:influx-pusher-exe"
+    - path: "./dbtool"
+      component: "slurp:exe:dbtool-exe"
     - path: "./test"
       component: "slurp:test:slurp-test"

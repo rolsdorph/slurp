@@ -11,8 +11,13 @@ stopAll () {
 }
 
 startAll() {
-    # TODO: consider a separate migration script here
     mkdir $SLURPDIR
+    make -C dbtool
+    dbExit=$?
+    if [ $dbExit -ne 0 ]; then
+        echo "DB migration script failed, not starting"
+        exit $dbExit
+    fi
     make -C frontend &
     make -C api &
     echo "$! " >> $PIDFILE
