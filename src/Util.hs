@@ -23,7 +23,7 @@ mapLeft _ (Right x) = Right x
 mapLeft mapper (Left err) = Left (mapper err)
 
 mapEither :: (a -> Either b c) -> [a] -> [c]
-mapEither f xs = rights $ (map f xs)
+mapEither f xs = rights (map f xs)
 
 rightOrNothing :: Either String a -> Maybe a
 rightOrNothing (Right val) = Just val

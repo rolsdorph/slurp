@@ -149,7 +149,7 @@ instance FromJSON User where
         <$> u .: "userId"
         <*> u .: "userCreatedAt"
         <*> u .: "authType"
-        <*> (pure Nothing)
+        <*> pure Nothing
 
 instance ToJSON SourceData where
     toJSON s = object

@@ -5,23 +5,19 @@ module HueHome
   ( collect, toDataPoint )
 where
 
-import Control.Lens
 import qualified Data.ByteString.UTF8          as U
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.HashMap.Strict as HM
-import Data.Int (Int64)
 import Data.Maybe
 import qualified Data.String as S
 import Data.Text (Text)
 import Network.HTTP.Req
-import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
-import Network.HTTP.Client (newManager)
 
 import Types as T
 
 hueBridgeApi :: BridgeHost
-hueBridgeApi = "api.meethue.com" -- TODO: read from config
+hueBridgeApi = "api.meethue.com"
 
 collect :: (HasLogger m, HasHttp m) => Home -> m (Either String SourceData)
 collect home = do

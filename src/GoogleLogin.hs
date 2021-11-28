@@ -4,22 +4,22 @@ module GoogleLogin where
 
 import Control.Lens
 import Control.Monad.Except
-import Control.Lens.Operators
 import           Crypto.JOSE.JWS
 import           Crypto.JWT
 import           Data.Aeson
 import qualified Data.ByteString.Lazy          as L
-import qualified Data.ByteString.UTF8          as U
 import qualified Data.ByteString.Char8         as C
 import qualified Data.Text                     as T
 
 import Util
 import Network.HTTP.Req (runReq, defaultHttpConfig, req, GET(..), NoReqBody(..), lbsResponse, responseBody, https, (/:))
 
+googleIssuer1 :: StringOrURI
 googleIssuer1 = "accounts.google.com"
+
+googleIssuer2 :: StringOrURI
 googleIssuer2 = "https://accounts.google.com"
 
--- TODO: Learn lens
 extractUserId :: ClaimsSet -> Either L.ByteString L.ByteString
 extractUserId claims = case maybeSub of
     (Just (Just x)) -> pure $ L.fromStrict (C.pack (T.unpack x))

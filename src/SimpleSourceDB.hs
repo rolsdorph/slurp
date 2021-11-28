@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module SimpleSourceDB where
@@ -12,13 +11,14 @@ import           Data.Maybe
 import           Data.UUID.V4
 import           DBUtil
 import           Types
-import           Util
 import Control.Monad.Except (ExceptT, liftIO, throwError)
 import Control.Monad.Reader (ask)
 
 
-sourceTableName = "simplejsonsources" :: String
+sourceTableName :: String
+sourceTableName = "simplejsonsources"
 
+createStmt :: String
 createStmt =
     "CREATE TABLE IF NOT EXISTS "
         ++ sourceTableName
@@ -35,7 +35,7 @@ createStmt =
 setupDb :: HasConnection ()
 setupDb = do
     conn <- ask
-    liftIO $ run conn createStmt []
+    _ <- liftIO $ run conn createStmt []
     liftIO $ commit conn
 
 class Monad m => MonadSimpleSource m where
@@ -73,7 +73,7 @@ instance MonadSimpleSource HasConnection where
   getUserSimpleSources ownerId = do
       conn <- ask
       stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ sourceTableName ++ " WHERE owner_id = ?")
-      res <- liftIO $ execute stmt [toSql ownerId]
+      _ <- liftIO $ execute stmt [toSql ownerId]
       sources <- liftIO $ fetchAllRowsAL stmt
       return $ mapMaybe parseSimpleSourceRow sources
 

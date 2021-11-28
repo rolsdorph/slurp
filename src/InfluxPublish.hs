@@ -9,16 +9,11 @@ where
 
 import           Control.Exception
 import           Control.Lens
-import qualified Data.Map                      as Map
-import           Data.Text                      ( Text
-                                                , pack
-                                                )
+import qualified Data.Map as Map
+import           Data.Text (Text, pack)
 import           Data.Time
 import           Database.InfluxDB
-import           Database.InfluxDB.Format       ( decimal
-                                                , key
-                                                , string
-                                                )
+import           Database.InfluxDB.Format (string)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Types
 

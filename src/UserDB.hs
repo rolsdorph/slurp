@@ -1,14 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module UserDB where
+module UserDB (
+  setupDb,
+  getUser,
+  getAllUsers,
+  fetchOrCreateInsecureUser,
+  fetchOrCreateGoogleUser
+) where
 
 import           Types
 import           DBUtil
 import           Util
 
-import           Data.Convertible.Base
-import           Data.List
 import           Data.Time.Clock
 import           Database.HDBC
 import           Data.UUID.V4
@@ -17,9 +21,13 @@ import qualified Data.ByteString.Char8         as C
 import           System.Log.Logger
 import Control.Monad.Reader (ask, liftIO)
 
-userDbLoggerName = "UserDB" -- TODO: Just don't export this variable
+userDbLoggerName :: String
+userDbLoggerName = "UserDB"
+
+userTableName :: String
 userTableName = "users" :: String
 
+createStmt :: String
 createStmt =
     "CREATE TABLE IF NOT EXISTS "
         ++ userTableName
@@ -32,7 +40,7 @@ createStmt =
 setupDb :: HasConnection ()
 setupDb = do
     conn <- ask
-    liftIO $ run conn createStmt []
+    _ <- liftIO $ run conn createStmt []
     liftIO $ commit conn
 
 getUser :: L.ByteString -> HasConnection (Either String User)
@@ -40,7 +48,7 @@ getUser userId = do
     conn <- ask
     stmt <- liftIO $ prepare conn
                     ("SELECT * FROM " ++ userTableName ++ " WHERE uuid = ?")
-    numRows  <- liftIO $ execute stmt [toSql userId]
+    _        <- liftIO $ execute stmt [toSql userId]
     firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
@@ -52,7 +60,7 @@ getAllUsers :: HasConnection [User]
 getAllUsers = do
     conn  <- ask
     stmt  <- liftIO $ prepare conn ("SELECT * FROM " ++ userTableName)
-    res   <- liftIO $ execute stmt []
+    _     <- liftIO $ execute stmt []
     users <- liftIO $ fetchAllRowsAL stmt
     return $ mapEither parseUserRow users
 
@@ -63,7 +71,7 @@ fetchOrCreateInsecureUser insecureId = do
     stmt <- liftIO $ prepare
         conn
         ("SELECT * FROM " ++ userTableName ++ " WHERE third_party_id = ?")
-    numRows  <- liftIO $ execute stmt [toSql insecureId]
+    _        <- liftIO $ execute stmt [toSql insecureId]
     firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
@@ -79,7 +87,7 @@ fetchOrCreateGoogleUser googleId = do
     stmt <- liftIO $ prepare
         conn
         ("SELECT * FROM " ++ userTableName ++ " WHERE third_party_id = ?")
-    numRows  <- liftIO $ execute stmt [toSql googleId]
+    _        <- liftIO $ execute stmt [toSql googleId]
     firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of

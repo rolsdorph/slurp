@@ -9,12 +9,13 @@ import           Data.Maybe
 import           Data.UUID.V4
 import           DBUtil
 import           Types
-import           Util
 import Control.Monad.Except (ExceptT, liftIO, throwError)
-import Control.Monad.Reader (MonadReader, ReaderT, ask)
+import Control.Monad.Reader (ask)
 
-influxTableName = "influxes" :: String
+influxTableName :: String
+influxTableName = "influxes"
 
+createStmt :: String
 createStmt =
     "CREATE TABLE IF NOT EXISTS "
         ++ influxTableName
@@ -32,7 +33,7 @@ createStmt =
 setupDb :: HasConnection ()
 setupDb = do
     conn <- ask
-    liftIO $ run conn createStmt []
+    _ <- liftIO $ run conn createStmt []
     liftIO $ commit conn
 
 -- Stores a InfluxSink in the database
@@ -71,7 +72,7 @@ getUserInfluxSinks ownerId = do
     conn <- ask
 
     stmt <- liftIO $ prepare conn ("SELECT * FROM " ++ influxTableName ++ " WHERE owner_id = ?")
-    res <- liftIO $ execute stmt [toSql ownerId]
+    _ <- liftIO $ execute stmt [toSql ownerId]
     sinks <- liftIO $ fetchAllRowsAL stmt
     return $ mapMaybe parseInfluxSinkRow sinks
 

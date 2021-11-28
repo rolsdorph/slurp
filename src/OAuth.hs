@@ -44,7 +44,9 @@ buildSpotifyOauthRedirect creds state =
         ++ state
         ++ "&scope=user-read-recently-played user-read-playback-state user-read-playback-state user-read-playback-state user-read-playback-state user-read-playback-state"
 
+realmex :: Regex
 realmex = compile "realm=\"([^\"]+)\"" []
+noncex :: Regex
 noncex = compile "nonce=\"([^\"]+)\"" []
 -- Extracts the realm and nonce from a WWW-Authenticate response header
 extractNonceAndRealm :: U.ByteString -> Either L.ByteString (U.ByteString, U.ByteString)
@@ -59,7 +61,7 @@ extractFromHeader name header = do
 
     let maybeHits = match re header []
     case maybeHits of
-         Just [full, hit] -> Right hit
+         Just [_, hit] -> Right hit
          _ -> Left (L.fromStrict name <> " not found in header from upstream")
 
 -- Given a nonce and a realm, builds the response hash for an OAuth digest header

@@ -6,7 +6,6 @@
 module Api where
 
 import           Types
-import           Lib
 import           OAuth
 import           Html
 import           Util
@@ -44,7 +43,6 @@ import           Data.List
 import           Data.Fixed
 import qualified Data.Text                     as T
 import           Data.Time
-import           Data.Time.Clock
 import qualified Data.Vector                   as V
 import           Database.HDBC.PostgreSQL (Connection)
 import           Network.HTTP.Req
@@ -52,6 +50,7 @@ import           System.Log.Logger
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
 import Control.Concurrent.STM (atomically)
 
+loggerName :: String
 loggerName = "Website"
 
 defaultPort :: Int
@@ -70,7 +69,7 @@ app conn creds keys request respond = do
                         _ -> pure Nothing
 
     response <- case (requestMethod request, rawPathInfo request) of
-        ("GET" , "/"             ) -> pure $ indexResponse
+        ("GET" , "/"             ) -> pure indexResponse
         ("GET" , "/main.js"      ) -> pure $ staticResponse "../frontend/main.js"
         ("GET" , "/style.css"    ) -> pure $ staticResponse "../frontend/style.css"
         ("GET" , "/login"        ) -> pure $ staticResponse "login-landing.html"
@@ -323,7 +322,7 @@ finishHueOAuthFlow creds code home = do
     tokens <- liftIO $ getHueOAuthTokens creds code
     case tokens of
         (Right resp) -> do
-            currentTime <- liftIO $ getCurrentTime
+            currentTime <- liftIO getCurrentTime
             let accessExpires = addUTCTime
                     (secondsToNominalDiffTime $ accessTokenExpiresIn resp)
                     currentTime

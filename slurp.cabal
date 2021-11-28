@@ -31,7 +31,6 @@ library
       Html
       InfluxDB
       InfluxPublish
-      Lib
       OAuth
       RabbitMQ
       Secrets

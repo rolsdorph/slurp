@@ -2,7 +2,6 @@
 module Html where
 
 import           Network.Wai.Parse
-import qualified Data.ByteString.Char8         as C
 import qualified Data.ByteString.Lazy          as L
 
 -- Checks whether a parameter has the given name

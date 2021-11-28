@@ -28,6 +28,7 @@ import Control.Exception.Base (catch)
 import Control.Concurrent.STM.TSem (TSem, signalTSem)
 import Control.Concurrent.STM (atomically)
 
+loggerName :: String
 loggerName = "Collector"
 
 newtype CollectorStack a = CollectorStack { runCollector :: IO a }
@@ -153,17 +154,8 @@ app = do
 
   publishJob <- liftIO . async $ runReaderT (publishAll userNotificationVar dataEventsVar) env
 
-  userNotificationJob <-
-    liftIO . async $
-      publishNotifications
-        (takeMVar userNotificationVar)
-        (envPublishNotification env)
-
-  dataEventsJob <-
-    liftIO . async $
-      publishNotifications
-        (takeMVar dataEventsVar)
-        (envPublishData env)
+  _ <- liftIO . async $ publishNotifications (takeMVar userNotificationVar) (envPublishNotification env)
+  _ <- liftIO . async $ publishNotifications (takeMVar dataEventsVar) (envPublishData env)
 
   liftIO $ envSignalReady env
 

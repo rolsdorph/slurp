@@ -4,16 +4,11 @@
 
 module SimpleSource where
 
-import           Control.Exception
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.Aeson.Types
-import qualified Data.ByteString               as B
-import qualified Data.ByteString.Lazy          as LB
 import qualified Data.List                     as List
 import           Data.Maybe
-import           Data.Text
 import           Network.HTTP.Req
 import           Text.URI
 

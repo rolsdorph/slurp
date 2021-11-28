@@ -5,14 +5,12 @@ module Auth where
 import           DBUtil (HasConnection)
 import           TokenDB
 import           UserDB
-import           Util
 import           Types
 
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Lazy          as L
 import qualified Data.ByteString.Search        as SS
 import qualified Network.HTTP.Types            as HTTP
-import           Data.Aeson
 
 type TokenVerifier = L.ByteString -> IO (Either String User)
 

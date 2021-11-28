@@ -3,18 +3,18 @@
 
 module TokenDB where
 
-import           Types
 import           DBUtil
 
-import           Data.Maybe
 import           Data.Time.Clock
 import           Database.HDBC
 import           Data.UUID.V4
 import           Data.ByteString.Lazy as L
 import Control.Monad.Reader (liftIO, ask)
 
-tokenTableName = "tokens" :: String
+tokenTableName :: String
+tokenTableName = "tokens"
 
+createStmt :: String
 createStmt =
     "CREATE TABLE IF NOT EXISTS "
         ++ tokenTableName
@@ -26,7 +26,7 @@ createStmt =
 setupDb :: HasConnection ()
 setupDb = do
     conn <- ask
-    liftIO $ run conn createStmt []
+    _ <- liftIO $ run conn createStmt []
     liftIO $ commit conn
 
 -- Creates a token for the given user ID
@@ -56,7 +56,7 @@ getTokenUserId token = do
     conn <- ask
     stmt <- liftIO $ prepare conn
                     ("SELECT * FROM " ++ tokenTableName ++ " WHERE token = ?")
-    numRows  <- liftIO $ execute stmt [toSql token]
+    _        <- liftIO $ execute stmt [toSql token]
     firstHit <- liftIO $ fetchRowAL stmt
 
     case firstHit of
@@ -67,7 +67,7 @@ getTokenUserId token = do
 deleteUserTokens :: String -> HasConnection ()
 deleteUserTokens uuid = do
     conn        <- ask
-    numInserted <- liftIO $ run
+    _ <- liftIO $ run
         conn
         ("DELETE FROM " ++ tokenTableName ++ " WHERE user_id = ?")
         [toSql uuid]
@@ -77,7 +77,7 @@ deleteUserTokens uuid = do
 deleteToken :: String -> String -> HasConnection ()
 deleteToken uuid token = do
     conn        <- ask
-    numInserted <- liftIO $ run
+    _ <- liftIO $ run
         conn
         ("DELETE FROM " ++ tokenTableName ++ " WHERE user_id = ? AND token = ?")
         [toSql uuid, toSql token]
