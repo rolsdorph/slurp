@@ -26,7 +26,8 @@ createStmt =
        \ influx_port text NOT NULL,\
        \ influx_tls boolean NOT NULL,\
        \ influx_username text NOT NULL,\
-       \ influx_password text NOT NULL)"
+       \ influx_password text NOT NULL,\
+       \ influx_db_name text NOT NULL)"
 
 setupDb :: HasConnection ()
 setupDb = do
@@ -45,8 +46,8 @@ storeInfluxSink influx = do
         conn
         ("INSERT INTO "
         ++ influxTableName
-        ++ "(uuid, owner_id, created_at, influx_host, influx_port, influx_tls, influx_username, influx_password) \
-                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ++ "(uuid, owner_id, created_at, influx_host, influx_port, influx_tls, influx_username, influx_password, influx_db_name) \
+                                    \ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         [ toSql uuid
         , toSql $ influxOwnerId influx
@@ -56,6 +57,7 @@ storeInfluxSink influx = do
         , toSql $ influxTLS influx
         , toSql $ influxUsername influx
         , toSql $ influxPassword influx
+        , toSql $ influxDbName influx
         ]
     liftIO $ commit conn
 
@@ -84,5 +86,6 @@ parseInfluxSinkRow vals =
             <*> valFrom "influx_tls" vals
             <*> valFrom "influx_username" vals
             <*> valFrom "influx_password" vals
+            <*> valFrom "influx_db_name" vals
             <*> valFrom "created_at" vals
         )

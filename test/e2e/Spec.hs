@@ -91,6 +91,12 @@ testInfluxUsername = "mysecretinflux"
 testInfluxPassword :: ByteString
 testInfluxPassword = "mysecrethunter2"
 
+testInfluxDbName :: ByteString
+testInfluxDbName = "mysecretdb"
+
+testInfluxDbName' :: String
+testInfluxDbName' = U.toString testInfluxDbName
+
 withDbAndEnv :: (Connection -> IO ()) -> IO ()
 withDbAndEnv test = do
   configureEnv
@@ -203,6 +209,7 @@ spec = describe "e2e functionality" $ do
       influxTLS sinkDef `shouldBe` False
       influxUsername sinkDef `shouldBe` ""
       influxPassword sinkDef `shouldBe` ""
+      influxDbName sinkDef `shouldBe` testInfluxDbName'
 
       getSinksReq <- withAuth <$> parseRequest "GET http://localhost:8080/sinks"
       sinksResp <- httpJSON getSinksReq
@@ -217,6 +224,7 @@ spec = describe "e2e functionality" $ do
       (writeReq, body) <- readChan influxChan
       queryString writeReq `shouldContain` [("u", Just testInfluxUsername)]
       queryString writeReq `shouldContain` [("p", Just testInfluxPassword)]
+      queryString writeReq `shouldContain` [("db", Just testInfluxDbName)]
       isInfixOf "mappedString=stringValue" body `shouldBe` True
       isInfixOf "mappedBool=true" body `shouldBe` True
 
@@ -248,7 +256,8 @@ influxSinkRequest = [
                      ("influxPort", testInfluxPort'),
                      ("influxTLS", "false"),
                      ("influxUsername", testInfluxUsername),
-                     ("influxPassword", testInfluxPassword)
+                     ("influxPassword", testInfluxPassword),
+                     ("influxDbName", testInfluxDbName)
                     ]
 
 addAuth :: ByteString -> Request -> Request

@@ -490,6 +490,7 @@ influxSinkFrom currentUser params = do
       <*> ((\p -> snd p == "true") <$> lookupParam "influxTLS" params)
       <*> (C.unpack . snd <$> lookupParam "influxUsername" params)
       <*> (C.unpack . snd <$> lookupParam "influxPassword" params)
+      <*> (C.unpack . snd <$> lookupParam "influxDbName" params)
       <*> pure currentTime
 
 -- Attempts to construct a simple JSON source

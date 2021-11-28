@@ -16,6 +16,7 @@ testSinkFor owner =
             <*> arbitrary
             <*> arbitrary
             <*> arbitrary
+            <*> arbitrary
             <*> return someTime
         )
 

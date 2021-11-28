@@ -250,17 +250,19 @@ data InfluxDefinition = InfluxDefinition
     influxTLS :: Bool,
     influxUsername :: String,
     influxPassword :: String,
+    influxDbName :: String,
     influxCreatedAt :: UTCTime
   } deriving (Show, Eq)
 
 instance ToJSON InfluxSink where
-    toJSON (InfluxSink uuid (InfluxDefinition ownerId influxHost influxPort influxTLS _ _ createdAt))
+    toJSON (InfluxSink uuid (InfluxDefinition ownerId influxHost influxPort influxTLS _ _ dbName createdAt))
         = object
             [ "id" .= uuid
             , "ownerId" .= ownerId
             , "influxHost" .= influxHost
             , "influxPort" .= influxPort
             , "influxTLS" .= influxTLS
+            , "influxDbName" .= dbName
             , "createdAt" .= outputTime createdAt
             ]
 
@@ -274,6 +276,7 @@ instance FromJSON InfluxSink where
                               <*> s .: "influxTLS"
                               <*> return "" -- Username/pw not currently exposed anywhere
                               <*> return "" -- Username/pw not currently exposed anywhere
+                              <*> s .: "influxDbName"
                               <*> s .: "createdAt"
              )
 

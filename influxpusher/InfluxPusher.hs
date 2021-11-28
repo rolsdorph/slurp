@@ -16,6 +16,7 @@ import RabbitMQ (ConsumerRegistry, createConsumerRegistry)
 import Types
 import UserNotification (notify, publishNotifications, rmqPushFunction)
 import qualified Database.InfluxDB.Types       as I
+import           Database.InfluxDB.Format      as F
 import qualified Data.Text                     as T
 import           InfluxDB
 import           System.Log.Logger
@@ -26,9 +27,6 @@ import Control.Concurrent.STM (atomically)
 
 loggerName :: String
 loggerName = "InfluxPusher"
-
-influxDbName :: I.Database
-influxDbName = "home" -- TODO: Move to the database
 
 data Env = Env
   { envGetUserSinks :: UserId -> IO [InfluxSink],
@@ -115,7 +113,7 @@ doPush dataToPublish sink =
       (influxTLS sink)
       (T.pack $ influxUsername sink)
       (T.pack $ influxPassword sink)
-      influxDbName
+      (F.formatDatabase (""F.%string) (influxDbName sink))
       (I.Measurement $ T.pack (datakey dataToPublish))
       (datapoints dataToPublish)
       

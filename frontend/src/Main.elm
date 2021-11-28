@@ -24,6 +24,7 @@ type alias Model =
     , influxSinkFormTLS : String
     , influxSinkFormUsername : String
     , influxSinkFormPassword : String
+    , influxSinkFormDbName : String
 
     -- Home form
     , homeDatakey : String
@@ -39,7 +40,7 @@ type alias Model =
 
 clearSinkForm : Model -> Model
 clearSinkForm old =
-    { old | influxSinkFormHost = "", influxSinkFormPort = "", influxSinkFormTLS = "", influxSinkFormUsername = "", influxSinkFormPassword = "" }
+    { old | influxSinkFormHost = "", influxSinkFormPort = "", influxSinkFormTLS = "", influxSinkFormUsername = "", influxSinkFormPassword = "", influxSinkFormDbName = "" }
 
 
 clearSimpleSourceForm : Model -> Model
@@ -52,7 +53,7 @@ type alias Home =
 
 
 type alias InfluxSink =
-    { id : String, influxHost : String, influxPort : Int, influxTLS : Bool, createdAt : String }
+    { id : String, influxHost : String, influxPort : Int, influxTLS : Bool, influxDbName : String, createdAt : String }
 
 
 type alias SimpleSource =
@@ -78,6 +79,7 @@ initialState =
     , influxSinkFormTLS = "true"
     , influxSinkFormUsername = ""
     , influxSinkFormPassword = ""
+    , influxSinkFormDbName = ""
     , homeDatakey = ""
     , simpleSourceDatakey = ""
     , simpleSourceUrl = ""
@@ -111,6 +113,7 @@ type Msg
     | UpdateInfluxTLS Bool
     | UpdateInfluxUsername String
     | UpdateInfluxPassword String
+    | UpdateInfluxDbName String
     | AddInfluxSink
     | PostedInfluxSink (Result Http.Error InfluxSink)
       -- Home form:
@@ -243,6 +246,9 @@ update msg old =
         UpdateInfluxPassword password ->
             ( { old | influxSinkFormPassword = password }, Cmd.none )
 
+        UpdateInfluxDbName dbName ->
+            ( { old | influxSinkFormDbName = dbName }, Cmd.none )
+
         AddInfluxSink ->
             case old.authToken of
                 Just t ->
@@ -330,6 +336,7 @@ sinkPayload state =
         , ( "influxTLS", state.influxSinkFormTLS )
         , ( "influxUsername", state.influxSinkFormUsername )
         , ( "influxPassword", state.influxSinkFormPassword )
+        , ( "influxDbName", state.influxSinkFormDbName )
         ]
         |> Http.stringBody "application/x-www-form-urlencoded"
 
@@ -379,6 +386,9 @@ addSinkForm state =
             , br [] []
             , label [ for "Influx password:" ] [ text "Influx password:" ]
             , input [ type_ "password", name "influxPassword", id "influxPassword", value state.influxSinkFormPassword, onInput UpdateInfluxPassword ] []
+            , br [] []
+            , label [ for "Influx database:" ] [ text "Influx database:" ]
+            , input [ type_ "text", name "influxDbName", id "influxDbName", value state.influxSinkFormDbName, onInput UpdateInfluxDbName ] []
             , br [] []
             , br [] []
             , button [ type_ "button", onClick AddInfluxSink ] [ text "Add" ]
@@ -546,7 +556,7 @@ homeDecoder =
 
 influxSinkDecoder : Decoder InfluxSink
 influxSinkDecoder =
-    map5 InfluxSink (field "id" string) (field "influxHost" string) (field "influxPort" int) (field "influxTLS" bool) (field "createdAt" string)
+    map6 InfluxSink (field "id" string) (field "influxHost" string) (field "influxPort" int) (field "influxTLS" bool) (field "influxDbName" string) (field "createdAt" string)
 
 
 simpleSourceDecoder : Decoder SimpleSource
